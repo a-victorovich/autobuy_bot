@@ -1,0 +1,16 @@
+telegram:
+  bot_token: "YOUR_BOT_TOKEN_HERE"
+  chat_id: -1001234567890  # Use negative ID for groups/channels
+
+scanner:
+  poll_interval_seconds: 30
+  price_check_threshold: 100  # Max items to fetch per pagination cycle
+
+getgems:
+  api_key: "YOUR_GETGEMS_API_KEY_HERE"
+
+collections:
+  # collectionAddress: discount percent (e.g. 10 means "alert if price < floorPrice * 0.90")
+  "EQD...collectionAddress1": 10
+  "EQD...collectionAddress2": 15
+  "EQD...collectionAddress3": 5
