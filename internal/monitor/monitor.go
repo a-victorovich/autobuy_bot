@@ -106,9 +106,9 @@ func (m *Monitor) scanOnSaleNFTs(ctx context.Context) error {
 	pageCount := 0
 
 	for {
-		resp, err := m.api.GetOnSaleGifts(ctx, cursor)
+		resp, err := m.api.GetGiftHistory(ctx, cursor)
 		if err != nil {
-			return fmt.Errorf("fetching on-sale gifts (cursor=%q): %w", cursor, err)
+			return fmt.Errorf("fetching gift history (cursor=%q): %w", cursor, err)
 		}
 
 		pageCount++

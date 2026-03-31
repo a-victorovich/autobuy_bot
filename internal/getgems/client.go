@@ -34,8 +34,8 @@ type NftItem struct {
 	Sale              SaleInfo `json:"sale"`
 }
 
-// OnSaleResponse is the envelope returned by /v1/nfts/offchain/on-sale/gifts.
-type OnSaleResponse struct {
+// GiftHistoryResponse is the envelope returned by /v1/nfts/history/gifts.
+type GiftHistoryResponse struct {
 	Items  []NftItem `json:"items"`
 	Cursor string    `json:"cursor"`
 }
@@ -65,20 +65,21 @@ func New(apiKey string) *Client {
 	}
 }
 
-// GetOnSaleGifts fetches a page of on-sale NFT gifts.
+// GetGiftHistory fetches a page of gift history records.
 // Pass an empty cursor to start from the beginning.
-func (c *Client) GetOnSaleGifts(ctx context.Context, cursor string) (*OnSaleResponse, error) {
-	endpoint := c.baseURL + "/v1/nfts/offchain/on-sale/gifts"
-
+func (c *Client) GetGiftHistory(ctx context.Context, cursor string) (*GiftHistoryResponse, error) {
+	params := url.Values{}
+	params.Set("reverse", "true")
+	params.Set("types[]", "putUpForSale")
 	if cursor != "" {
-		params := url.Values{}
 		params.Set("after", cursor)
-		endpoint += "?" + params.Encode()
 	}
 
-	var result OnSaleResponse
+	endpoint := fmt.Sprintf("%s/v1/nfts/history/gifts?%s", c.baseURL, params.Encode())
+
+	var result GiftHistoryResponse
 	if err := c.get(ctx, endpoint, &result); err != nil {
-		return nil, fmt.Errorf("GetOnSaleGifts: %w", err)
+		return nil, fmt.Errorf("GetGiftHistory: %w", err)
 	}
 	return &result, nil
 }
@@ -127,7 +128,6 @@ func (c *Client) get(ctx context.Context, endpoint string, out any) error {
 		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, truncate(string(body), 200))
 	}
 
-	// 👉 ВАЖНО: используем обёртку
 	var wrapped APIResponse[json.RawMessage]
 	if err := json.Unmarshal(body, &wrapped); err != nil {
 		return fmt.Errorf("decoding API wrapper: %w", err)
@@ -137,7 +137,6 @@ func (c *Client) get(ctx context.Context, endpoint string, out any) error {
 		return fmt.Errorf("api returned success=false: %s", truncate(string(wrapped.Response), 200))
 	}
 
-	// 👉 теперь декодируем вложенный response в нужный тип
 	if err := json.Unmarshal(wrapped.Response, out); err != nil {
 		return fmt.Errorf("decoding inner response: %w", err)
 	}
