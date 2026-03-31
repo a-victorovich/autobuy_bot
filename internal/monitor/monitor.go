@@ -115,6 +115,14 @@ func (m *Monitor) scanOnSaleNFTs(ctx context.Context) error {
 		slog.Debug("Fetched page", "page", pageCount, "items", len(resp.Items), "cursor", shorten(resp.Cursor))
 
 		for _, item := range resp.Items {
+			if !m.isWatchedCollection(item.CollectionAddress) {
+				slog.Debug("Skipping NFT from unwatched collection",
+					"nft", shorten(item.Address),
+					"collection", shorten(item.CollectionAddress),
+				)
+				continue
+			}
+
 			m.processItem(ctx, item)
 		}
 
@@ -146,8 +154,7 @@ func (m *Monitor) scanOnSaleNFTs(ctx context.Context) error {
 // processItem checks a single NFT against its collection floor price and
 // fires an alert if the listing price is below the configured threshold.
 func (m *Monitor) processItem(ctx context.Context, item getgems.NftItem) {
-	// Skip collections that are not in our watchlist.
-	discountPct, watched := m.cfg.Collections[item.CollectionAddress]
+	discountPct, watched := m.discountThreshold(item.CollectionAddress)
 	if !watched {
 		return
 	}
@@ -188,6 +195,16 @@ func (m *Monitor) processItem(ctx context.Context, item getgems.NftItem) {
 			slog.Error("Failed to send Telegram alert", "err", err)
 		}
 	}
+}
+
+func (m *Monitor) isWatchedCollection(collectionAddress string) bool {
+	_, watched := m.discountThreshold(collectionAddress)
+	return watched
+}
+
+func (m *Monitor) discountThreshold(collectionAddress string) (float64, bool) {
+	discountPct, watched := m.cfg.Collections[collectionAddress]
+	return discountPct, watched
 }
 
 // ----- Formatting -----------------------------------------------------------
