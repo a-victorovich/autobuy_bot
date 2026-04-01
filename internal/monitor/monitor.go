@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+	"strconv"
 
 	"github.com/yourorg/nft-scanner/internal/config"
 	"github.com/yourorg/nft-scanner/internal/getgems"
@@ -276,7 +277,14 @@ func (m *Monitor) processItem(ctx context.Context, item getgems.NftItem, watched
 
 	// Threshold = floorPrice * (1 - discountPct/100)
 	threshold := floorPrice * (1 - discountPct/100)
-	price := item.Sale.FixPrice
+
+	price, err := strconv.ParseFloat(item.TypeData.PriceNano, 64)
+	if err != nil {
+		slog.Warn("Failed parse float", item.TypeData.PriceNano, item.Address)
+		return
+	}
+
+	// todo fix calculation here and replace floorPrice
 
 	if price <= 0 {
 		return // no valid price — skip

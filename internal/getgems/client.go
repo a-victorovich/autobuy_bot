@@ -22,16 +22,16 @@ type APIResponse[T any] struct {
 
 // ----- Domain models --------------------------------------------------------
 
-// SaleInfo holds pricing data for a listed NFT.
-type SaleInfo struct {
-	FixPrice float64 `json:"fix_price"`
+// PutUpForSaleTypeData holds pricing data for a listed NFT.
+type PutUpForSaleTypeData struct {
+	PriceNano string `json:"priceNano"`
 }
 
 // NftItem represents a single NFT returned by the on-sale endpoint.
 type NftItem struct {
-	Address           string   `json:"address"`
-	CollectionAddress string   `json:"collectionAddress"`
-	Sale              SaleInfo `json:"sale"`
+	Address           string               `json:"address"`
+	CollectionAddress string               `json:"collectionAddress"`
+	TypeData          PutUpForSaleTypeData `json:"typeData"`
 }
 
 // GiftHistoryResponse is the envelope returned by /v1/nfts/history/gifts.
