@@ -66,10 +66,13 @@ func New(apiKey string) *Client {
 }
 
 // GetGiftHistory fetches a page of gift history records.
-// Pass an empty cursor to start from the beginning.
-func (c *Client) GetGiftHistory(ctx context.Context, cursor string) (*GiftHistoryResponse, error) {
+// Pass an empty cursor to omit the after parameter.
+func (c *Client) GetGiftHistory(ctx context.Context, cursor string, reverse bool, limit int) (*GiftHistoryResponse, error) {
 	params := url.Values{}
-	params.Set("reverse", "true")
+	params.Set("reverse", fmt.Sprintf("%t", reverse))
+	if limit > 0 {
+		params.Set("limit", fmt.Sprintf("%d", limit))
+	}
 	params.Set("types[]", "putUpForSale")
 	if cursor != "" {
 		params.Set("after", cursor)
@@ -103,7 +106,6 @@ func truncate(s string, n int) string {
 	}
 	return s[:n] + "…"
 }
-
 
 func (c *Client) get(ctx context.Context, endpoint string, out any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)

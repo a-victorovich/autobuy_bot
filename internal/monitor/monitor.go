@@ -32,8 +32,13 @@ func New(cfg *config.Config, api *getgems.Client, notifier *telegram.Notifier) *
 	}
 }
 
-// Run initialises floor prices and then polls for new listings on the
-// configured interval until ctx is cancelled.
+const (
+	initialCursorLimit = 1
+	historyBatchLimit  = 10
+)
+
+// Run initialises floor prices and then polls for new listings until ctx is
+// cancelled.
 func (m *Monitor) Run(ctx context.Context) error {
 	slog.Info("Initialising floor prices", "collections", len(m.cfg.Collections))
 	if err := m.refreshFloorPrices(ctx); err != nil {
@@ -41,25 +46,31 @@ func (m *Monitor) Run(ctx context.Context) error {
 	}
 
 	interval := time.Duration(m.cfg.Scanner.PollIntervalSeconds) * time.Second
-	slog.Info("Starting scan loop", "interval", interval)
+	slog.Info("Starting gift history loop", "interval", interval)
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	// Run once immediately, then on each tick.
-	if err := m.scanOnSaleNFTs(ctx); err != nil {
-		slog.Error("Scan error", "err", err)
+	cursor, err := m.bootstrapCursor(ctx)
+	if err != nil {
+		return fmt.Errorf("bootstrapping gift history cursor: %w", err)
 	}
 
 	for {
+		slog.Debug("Run iteration with cursor: %w", cursor)
+		nextCursor, immediate, err := m.scanGiftHistoryBatch(ctx, cursor)
+		if err != nil {
+			slog.Error("Scan error", "err", err)
+		} else if nextCursor != "" {
+			cursor = nextCursor
+		}
+
+		if immediate {
+			continue
+		}
+
 		select {
 		case <-ctx.Done():
 			slog.Info("Monitor shutting down")
 			return ctx.Err()
-		case <-ticker.C:
-			if err := m.scanOnSaleNFTs(ctx); err != nil {
-				slog.Error("Scan error", "err", err)
-			}
+		case <-time.After(interval):
 		}
 	}
 }
@@ -97,58 +108,55 @@ func (m *Monitor) floorPrice(addr string) (float64, bool) {
 
 // ----- NFT scanning ---------------------------------------------------------
 
-// scanOnSaleNFTs fetches all pages of on-sale NFTs for this polling cycle
-// and processes each item.
-func (m *Monitor) scanOnSaleNFTs(ctx context.Context) error {
-	slog.Debug("Starting on-sale scan")
-
-	var cursor string
-	pageCount := 0
-
-	for {
-		resp, err := m.api.GetGiftHistory(ctx, cursor)
-		if err != nil {
-			return fmt.Errorf("fetching gift history (cursor=%q): %w", cursor, err)
-		}
-
-		pageCount++
-		slog.Debug("Fetched page", "page", pageCount, "items", len(resp.Items), "cursor", shorten(resp.Cursor))
-
-		for _, item := range resp.Items {
-			if !m.isWatchedCollection(item.CollectionAddress) {
-				slog.Debug("Skipping NFT from unwatched collection",
-					"nft", shorten(item.Address),
-					"collection", shorten(item.CollectionAddress),
-				)
-				continue
-			}
-
-			m.processItem(ctx, item)
-		}
-
-		// The API always returns a cursor. Stop when the item list is empty —
-		// that signals the end of the current dataset.
-		if len(resp.Items) == 0 {
-			slog.Debug("Empty page received — scan complete", "pages", pageCount)
-			break
-		}
-
-		if resp.Cursor == "" {
-			slog.Warn("API returned non-empty items but no cursor — stopping to avoid infinite loop")
-			break
-		}
-
-		cursor = resp.Cursor
-
-		// Respect context cancellation between pages.
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
+func (m *Monitor) bootstrapCursor(ctx context.Context) (string, error) {
+	resp, err := m.api.GetGiftHistory(ctx, "", false, initialCursorLimit)
+	if err != nil {
+		return "", fmt.Errorf("fetching initial gift history cursor: %w", err)
 	}
 
-	return nil
+	slog.Info("Bootstrapped gift history cursor",
+		"items", len(resp.Items),
+		"cursor", resp.Cursor,
+	)
+
+	return resp.Cursor, nil
+}
+
+// scanGiftHistoryBatch fetches one incremental page after the current cursor
+// and processes all received items. It returns the next cursor and whether the
+// caller should immediately request another page.
+func (m *Monitor) scanGiftHistoryBatch(ctx context.Context, cursor string) (string, bool, error) {
+	resp, err := m.api.GetGiftHistory(ctx, cursor, true, historyBatchLimit)
+	if err != nil {
+		return cursor, false, fmt.Errorf("fetching gift history (cursor=%q): %w", cursor, err)
+	}
+
+	slog.Debug("Fetched gift history batch",
+		"items", len(resp.Items),
+		"new cursor", resp.Cursor,
+		"after", cursor,
+	)
+
+	for _, item := range resp.Items {
+		if !m.isWatchedCollection(item.CollectionAddress) {
+			slog.Debug("Skipping NFT from unwatched collection",
+				"nft", shorten(item.Address),
+				"collection", shorten(item.CollectionAddress),
+			)
+			continue
+		}
+
+		m.processItem(ctx, item)
+	}
+
+	nextCursor := cursor
+	if resp.Cursor != "" {
+		nextCursor = resp.Cursor
+	} else if len(resp.Items) > 0 {
+		slog.Warn("API returned items without cursor; keeping previous cursor to avoid losing state")
+	}
+
+	return nextCursor, len(resp.Items) == historyBatchLimit, nil
 }
 
 // processItem checks a single NFT against its collection floor price and
@@ -175,8 +183,8 @@ func (m *Monitor) processItem(ctx context.Context, item getgems.NftItem) {
 	}
 
 	slog.Debug("Checking NFT",
-		"nft", shorten(item.Address),
-		"collection", shorten(item.CollectionAddress),
+		"nft", item.Address,
+		"collection", item.CollectionAddress,
 		"price", price,
 		"floor", floorPrice,
 		"threshold", threshold,
