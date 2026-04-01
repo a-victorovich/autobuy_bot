@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	baseURL        = "https://api.getgems.io/public-api"
+	baseURL        = "https://api.testnet.getgems.io/public-api"
 	defaultTimeout = 15 * time.Second
 )
 

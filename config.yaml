@@ -4,7 +4,6 @@ telegram:
 
 scanner:
   poll_interval_seconds: 30
-  price_check_threshold: 100  # Max items to fetch per pagination cycle
 
 getgems:
   api_key: "YOUR_GETGEMS_API_KEY_HERE"

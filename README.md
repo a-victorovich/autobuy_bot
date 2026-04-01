@@ -48,7 +48,6 @@ telegram:
 
 scanner:
   poll_interval_seconds: 30       # How often to scan (default: 30)
-  price_check_threshold: 100      # Informational — max items per pagination call
 
 collections:
   "EQD...address1": 10  # Alert if price < floorPrice * 0.90  (10% off)

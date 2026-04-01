@@ -30,7 +30,6 @@ type TelegramConfig struct {
 // ScannerConfig holds polling and behaviour settings.
 type ScannerConfig struct {
 	PollIntervalSeconds int `yaml:"poll_interval_seconds"`
-	PriceCheckThreshold int `yaml:"price_check_threshold"`
 }
 
 // Load reads and parses the YAML config file at the given path.
@@ -52,9 +51,6 @@ func Load(path string) (*Config, error) {
 	// Apply defaults.
 	if cfg.Scanner.PollIntervalSeconds == 0 {
 		cfg.Scanner.PollIntervalSeconds = 30
-	}
-	if cfg.Scanner.PriceCheckThreshold == 0 {
-		cfg.Scanner.PriceCheckThreshold = 100
 	}
 
 	return &cfg, nil
