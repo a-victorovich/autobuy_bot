@@ -87,6 +87,33 @@ func (c *Client) GetGiftHistory(ctx context.Context, cursor string, reverse bool
 	return &result, nil
 }
 
+// GetNftHistory fetches a page of history records for a collection.
+// Pass an empty cursor to omit the after parameter.
+func (c *Client) GetNftHistory(ctx context.Context, collectionAddress, cursor string, reverse bool, limit int) (*GiftHistoryResponse, error) {
+	params := url.Values{}
+	params.Set("reverse", fmt.Sprintf("%t", reverse))
+	if limit > 0 {
+		params.Set("limit", fmt.Sprintf("%d", limit))
+	}
+	params.Set("types[]", "putUpForSale")
+	if cursor != "" {
+		params.Set("after", cursor)
+	}
+
+	endpoint := fmt.Sprintf(
+		"%s/v1/collection/history/%s?%s",
+		c.baseURL,
+		url.PathEscape(collectionAddress),
+		params.Encode(),
+	)
+
+	var result GiftHistoryResponse
+	if err := c.get(ctx, endpoint, &result); err != nil {
+		return nil, fmt.Errorf("GetNftHistory(%s): %w", collectionAddress, err)
+	}
+	return &result, nil
+}
+
 // GetCollectionStats fetches floor-price stats for a collection.
 func (c *Client) GetCollectionStats(ctx context.Context, collectionAddress string) (*CollectionStats, error) {
 	endpoint := fmt.Sprintf("%s/v1/collection/stats/%s", c.baseURL, url.PathEscape(collectionAddress))
