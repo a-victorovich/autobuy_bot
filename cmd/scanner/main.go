@@ -29,6 +29,7 @@ func main() {
 	}
 	slog.Info("Config loaded",
 		"collections", len(cfg.Collections),
+		"giftCollections", len(cfg.GiftCollections),
 		"pollInterval", cfg.Scanner.PollIntervalSeconds,
 	)
 

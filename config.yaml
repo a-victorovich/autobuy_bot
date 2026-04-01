@@ -14,3 +14,7 @@ collections:
   "EQD...collectionAddress1": 10
   "EQD...collectionAddress2": 15
   "EQD...collectionAddress3": 5
+
+gift_collections:
+  # gift collectionAddress: discount percent for /v1/nfts/history/gifts
+  "EQD...giftCollectionAddress1": 10

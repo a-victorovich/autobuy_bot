@@ -9,10 +9,11 @@ import (
 
 // Config is the root configuration structure loaded from config.yaml.
 type Config struct {
-	Telegram    TelegramConfig     `yaml:"telegram"`
-	Getgems     GetgemsConfig      `yaml:"getgems"`
-	Scanner     ScannerConfig      `yaml:"scanner"`
-	Collections map[string]float64 `yaml:"collections"` // collectionAddress -> discount percent
+	Telegram        TelegramConfig     `yaml:"telegram"`
+	Getgems         GetgemsConfig      `yaml:"getgems"`
+	Scanner         ScannerConfig      `yaml:"scanner"`
+	Collections     map[string]float64 `yaml:"collections"`      // collectionAddress -> discount percent
+	GiftCollections map[string]float64 `yaml:"gift_collections"` // gift collectionAddress -> discount percent
 }
 
 // GetgemsConfig holds credentials for the Getgems public API.
@@ -28,8 +29,8 @@ type TelegramConfig struct {
 
 // ScannerConfig holds polling and behaviour settings.
 type ScannerConfig struct {
-	PollIntervalSeconds  int `yaml:"poll_interval_seconds"`
-	PriceCheckThreshold  int `yaml:"price_check_threshold"`
+	PollIntervalSeconds int `yaml:"poll_interval_seconds"`
+	PriceCheckThreshold int `yaml:"price_check_threshold"`
 }
 
 // Load reads and parses the YAML config file at the given path.
@@ -69,15 +70,25 @@ func (c *Config) validate() error {
 	if c.Telegram.ChatID == 0 {
 		return fmt.Errorf("telegram.chat_id is required")
 	}
-	if len(c.Collections) == 0 {
-		return fmt.Errorf("at least one collection must be configured")
+	if len(c.Collections) == 0 && len(c.GiftCollections) == 0 {
+		return fmt.Errorf("at least one of collections or gift_collections must be configured")
 	}
-	for addr, pct := range c.Collections {
+	if err := validateCollections("collections", c.Collections); err != nil {
+		return err
+	}
+	if err := validateCollections("gift_collections", c.GiftCollections); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateCollections(field string, collections map[string]float64) error {
+	for addr, pct := range collections {
 		if addr == "" {
-			return fmt.Errorf("empty collection address found")
+			return fmt.Errorf("%s contains an empty collection address", field)
 		}
 		if pct < 0 || pct > 100 {
-			return fmt.Errorf("collection %q: percent must be between 0 and 100, got %v", addr, pct)
+			return fmt.Errorf("%s %q: percent must be between 0 and 100, got %v", field, addr, pct)
 		}
 	}
 	return nil

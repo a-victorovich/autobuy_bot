@@ -6,8 +6,8 @@ items are priced below a configurable percentage of the collection floor price.
 ## How it works
 
 1. On startup, fetches the **floor price** for every collection in `config.yaml`.
-2. Every 30 seconds (configurable), calls the Getgems on-sale endpoint and
-   paginates through **all** listed NFTs using the cursor.
+2. Every 30 seconds (configurable), calls the configured Getgems history
+   endpoints and paginates forward using cursors.
 3. For each NFT belonging to a watched collection, checks:
    ```
    salePrice < floorPrice × (1 - discountPercent / 100)
@@ -53,6 +53,9 @@ scanner:
 collections:
   "EQD...address1": 10  # Alert if price < floorPrice * 0.90  (10% off)
   "EQD...address2": 15  # Alert if price < floorPrice * 0.85  (15% off)
+
+gift_collections:
+  "EQD...giftAddress1": 10  # Same threshold logic, but for /v1/nfts/history/gifts
 ```
 
 ## Running in production
