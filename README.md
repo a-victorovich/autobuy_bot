@@ -108,3 +108,11 @@ WantedBy=multi-user.target
 ├── go.mod
 └── Makefile
 ```
+
+## Run tests
+go test ./internal/monitor
+or
+GOCACHE=/tmp/go-build-cache go test ./internal/monitor -run TestCalculateThreshold -v
+
+## Plans to do:
+1) Renew floor price for collections 

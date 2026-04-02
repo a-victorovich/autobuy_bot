@@ -287,8 +287,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgems.NftItem, watched
 		return
 	}
 
-	// Threshold = floorPrice * (1 - discountPct/100)
-	threshold := floorPrice * (1 - discountPct/100)
+	threshold := calculateThreshold(floorPrice, discountPct)
 
 	price, err := strconv.ParseFloat(item.TypeData.PriceNano, 64)
 	if err != nil {
@@ -362,6 +361,10 @@ func (m *Monitor) watchedCollections() []string {
 func discountThreshold(watchedCollections map[string]float64, collectionAddress string) (float64, bool) {
 	discountPct, watched := watchedCollections[collectionAddress]
 	return discountPct, watched
+}
+
+func calculateThreshold(floorPrice, discountPct float64) float64 {
+	return floorPrice * (1 - discountPct/100)
 }
 
 // ----- Formatting -----------------------------------------------------------
