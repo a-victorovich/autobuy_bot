@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"sync"
 	"time"
-	"strconv"
 
 	"github.com/yourorg/nft-scanner/internal/config"
 	"github.com/yourorg/nft-scanner/internal/getgems"
@@ -128,12 +128,23 @@ func (m *Monitor) refreshFloorPrices(ctx context.Context) error {
 			slog.Warn("Failed to fetch floor price", "collection", addr, "err", err)
 			continue
 		}
+
+		floorPrice, err := strconv.ParseFloat(stats.FloorPriceNano, 64)
+		if err != nil {
+			slog.Warn("Failed to parse floor price nano",
+				"collection", addr,
+				"floorPriceNano", stats.FloorPriceNano,
+				"err", err,
+			)
+			continue
+		}
+
 		m.mu.Lock()
-		m.floorCache[addr] = stats.FloorPrice
+		m.floorCache[addr] = floorPrice
 		m.mu.Unlock()
 		slog.Info("Floor price fetched",
 			"collection", shorten(addr),
-			"floorPrice", stats.FloorPrice,
+			"floorPriceNano", floorPrice,
 		)
 	}
 	return nil
@@ -284,8 +295,6 @@ func (m *Monitor) processItem(ctx context.Context, item getgems.NftItem, watched
 		return
 	}
 
-	// todo fix calculation here and replace floorPrice
-
 	if price <= 0 {
 		return // no valid price — skip
 	}
@@ -303,8 +312,8 @@ func (m *Monitor) processItem(ctx context.Context, item getgems.NftItem, watched
 		msg := formatAlert(item, floorPrice, price, discount, discountPct)
 		slog.Info("🔔 Signal found",
 			"nft", shorten(item.Address),
-			"price", price,
-			"floor", floorPrice,
+			"priceNano", price,
+			"floorPriceNano", floorPrice,
 			"discountPct", fmt.Sprintf("%.2f%%", discount),
 		)
 		if err := m.notifier.SendSignal(ctx, msg); err != nil {
@@ -367,12 +376,16 @@ func formatAlert(item getgems.NftItem, floorPrice, salePrice, actualDiscount, co
 			"🔗 https://getgems.io/nft/%s",
 		item.CollectionAddress,
 		item.Address,
-		salePrice,
-		floorPrice,
+		tonFromNano(salePrice),
+		tonFromNano(floorPrice),
 		actualDiscount,
 		configuredPct,
 		item.Address,
 	)
+}
+
+func tonFromNano(nano float64) float64 {
+	return nano / 1_000_000_000
 }
 
 // shorten trims long addresses/cursors for readable log output.
