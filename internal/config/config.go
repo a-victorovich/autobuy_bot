@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -16,6 +17,7 @@ const (
 type Config struct {
 	Telegram        TelegramConfig     `yaml:"telegram"`
 	Getgems         GetgemsConfig      `yaml:"getgems"`
+	Wallet          WalletConfig       `yaml:"wallet"`
 	Scanner         ScannerConfig      `yaml:"scanner"`
 	Collections     map[string]float64 `yaml:"collections"`      // collectionAddress -> discount percent
 	GiftCollections map[string]float64 `yaml:"gift_collections"` // gift collectionAddress -> discount percent
@@ -32,6 +34,11 @@ type GetgemsConfig struct {
 type TelegramConfig struct {
 	BotToken string `yaml:"bot_token"`
 	ChatID   int64  `yaml:"chat_id"`
+}
+
+// WalletConfig holds TON wallet credentials.
+type WalletConfig struct {
+	SecretPhrase string `yaml:"secret_phrase"`
 }
 
 // ScannerConfig holds polling and behaviour settings.
@@ -79,6 +86,11 @@ func (c *Config) validate() error {
 	if c.Telegram.ChatID == 0 {
 		return fmt.Errorf("telegram.chat_id is required")
 	}
+	if c.Wallet.SecretPhrase != "" {
+		if err := validateSecretPhrase(c.Wallet.SecretPhrase); err != nil {
+			return fmt.Errorf("wallet.secret_phrase: %w", err)
+		}
+	}
 	if len(c.Collections) == 0 && len(c.GiftCollections) == 0 {
 		return fmt.Errorf("at least one of collections or gift_collections must be configured")
 	}
@@ -101,4 +113,16 @@ func validateCollections(field string, collections map[string]float64) error {
 		}
 	}
 	return nil
+}
+
+func validateSecretPhrase(phrase string) error {
+	words := splitSecretPhrase(phrase)
+	if len(words) != 12 && len(words) != 24 {
+		return fmt.Errorf("must contain 12 or 24 words, got %d", len(words))
+	}
+	return nil
+}
+
+func splitSecretPhrase(phrase string) []string {
+	return strings.Fields(phrase)
 }

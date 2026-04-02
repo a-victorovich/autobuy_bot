@@ -46,6 +46,9 @@ telegram:
   bot_token: "7123456789:AAF..."  # From @BotFather
   chat_id: -1001234567890         # Negative for groups/channels
 
+wallet:
+  secret_phrase: ""               # Optional for now; 12 or 24 mnemonic words
+
 scanner:
   poll_interval_seconds: 30       # How often to scan (default: 30)
 
@@ -102,6 +105,8 @@ WantedBy=multi-user.target
 │   │   └── client.go        # Getgems API HTTP client
 │   ├── telegram/
 │   │   └── notifier.go      # Telegram bot wrapper
+│   ├── wallet/
+│   │   └── wallet.go        # TON wallet mnemonic parsing and access
 │   └── monitor/
 │       └── monitor.go       # Core business logic
 ├── config.yaml              # Example configuration

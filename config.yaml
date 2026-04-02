@@ -2,6 +2,9 @@ telegram:
   bot_token: "YOUR_BOT_TOKEN_HERE"
   chat_id: -1001234567890  # Use negative ID for groups/channels
 
+wallet:
+  secret_phrase: ""  # Optional for now; 12 or 24 words separated by spaces
+
 scanner:
   poll_interval_seconds: 30
 
