@@ -29,8 +29,8 @@ type PutUpForSaleTypeData struct {
 	Currency  string `json:"currency"`
 }
 
-// NftItem represents a single NFT returned by the on-sale endpoint.
-type NftItem struct {
+// NftItemHistoryEvent represents a single NFT history event returned by the API.
+type NftItemHistoryEvent struct {
 	Address           string               `json:"address"`
 	CollectionAddress string               `json:"collectionAddress"`
 	TypeData          PutUpForSaleTypeData `json:"typeData"`
@@ -38,7 +38,7 @@ type NftItem struct {
 
 // GiftHistoryResponse is the envelope returned by /v1/nfts/history/gifts.
 type GiftHistoryResponse struct {
-	Items  []NftItem `json:"items"`
+	Items  []NftItemHistoryEvent `json:"items"`
 	Cursor string    `json:"cursor"`
 }
 

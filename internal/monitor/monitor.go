@@ -274,14 +274,18 @@ func (m *Monitor) scanNftHistoryBatch(ctx context.Context, collectionAddress, cu
 
 // processItem checks a single NFT against its collection floor price and
 // fires an alert if the listing price is below the configured threshold.
-func (m *Monitor) processItem(ctx context.Context, item getgems.NftItem, watchedCollections map[string]float64) {
+func (m *Monitor) processItem(ctx context.Context, item getgems.NftItemHistoryEvent, watchedCollections map[string]float64) {
 	discountPct, watched := discountThreshold(watchedCollections, item.CollectionAddress)
 	if !watched {
 		return
 	}
 
-	if (item.TypeData.Currency != "TON") {
-		slog.Debug("Skip non-TON sales", item.TypeData.Currency) // todo check is it a correct log?
+	if item.TypeData.Currency != "TON" {
+		slog.Debug("Skipping non-TON sale",
+			"currency", item.TypeData.Currency,
+			"nft", shorten(item.Address),
+			"collection", shorten(item.CollectionAddress),
+		)
 		return
 	}
 
@@ -296,7 +300,10 @@ func (m *Monitor) processItem(ctx context.Context, item getgems.NftItem, watched
 
 	price, err := strconv.ParseFloat(item.TypeData.PriceNano, 64)
 	if err != nil {
-		slog.Warn("Failed parse float", item.TypeData.PriceNano, item.Address)
+		slog.Warn("Failed to parse sale price nano",
+			"priceNano", item.TypeData.PriceNano,
+			"nft", shorten(item.Address),
+		)
 		return
 	}
 
@@ -374,7 +381,7 @@ func calculateThreshold(floorPrice, discountPct float64) float64 {
 
 // ----- Formatting -----------------------------------------------------------
 
-func formatAlert(getgemsWebURL string, item getgems.NftItem, floorPrice, salePrice, actualDiscount, configuredPct float64) string {
+func formatAlert(getgemsWebURL string, item getgems.NftItemHistoryEvent, floorPrice, salePrice, actualDiscount, configuredPct float64) string {
 	return fmt.Sprintf(
 		"🚨 *NFT Deal Alert*\n\n"+
 			"📦 *Collection:* `%s`\n"+
