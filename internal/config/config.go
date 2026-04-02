@@ -7,6 +7,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	DefaultGetgemsBaseURL = "https://api.getgems.io/public-api"
+	DefaultGetgemsWebURL  = "https://getgems.io"
+)
+
 // Config is the root configuration structure loaded from config.yaml.
 type Config struct {
 	Telegram        TelegramConfig     `yaml:"telegram"`
@@ -18,7 +23,9 @@ type Config struct {
 
 // GetgemsConfig holds credentials for the Getgems public API.
 type GetgemsConfig struct {
-	APIKey string `yaml:"api_key"`
+	APIKey  string `yaml:"api_key"`
+	BaseURL string `yaml:"base_url"`
+	WebURL  string `yaml:"web_url"`
 }
 
 // TelegramConfig holds Telegram bot credentials and target chat.
@@ -51,6 +58,12 @@ func Load(path string) (*Config, error) {
 	// Apply defaults.
 	if cfg.Scanner.PollIntervalSeconds == 0 {
 		cfg.Scanner.PollIntervalSeconds = 30
+	}
+	if cfg.Getgems.BaseURL == "" {
+		cfg.Getgems.BaseURL = DefaultGetgemsBaseURL
+	}
+	if cfg.Getgems.WebURL == "" {
+		cfg.Getgems.WebURL = DefaultGetgemsWebURL
 	}
 
 	return &cfg, nil

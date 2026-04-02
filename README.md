@@ -49,6 +49,11 @@ telegram:
 scanner:
   poll_interval_seconds: 30       # How often to scan (default: 30)
 
+getgems:
+  api_key: "YOUR_GETGEMS_API_KEY_HERE"
+  base_url: "https://api.getgems.io/public-api"  # Optional; defaults to this value
+  web_url: "https://getgems.io"                  # Optional; used for alert links
+
 collections:
   "EQD...address1": 10  # Alert if price < floorPrice * 0.90  (10% off)
   "EQD...address2": 15  # Alert if price < floorPrice * 0.85  (15% off)

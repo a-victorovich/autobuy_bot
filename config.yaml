@@ -7,6 +7,8 @@ scanner:
 
 getgems:
   api_key: "YOUR_GETGEMS_API_KEY_HERE"
+  base_url: "https://api.getgems.io/public-api"  # Optional; defaults to mainnet public API
+  web_url: "https://getgems.io"                  # Optional; defaults to the public website
 
 collections:
   # collectionAddress: discount percent (e.g. 10 means "alert if price < floorPrice * 0.90")

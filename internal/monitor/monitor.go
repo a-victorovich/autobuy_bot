@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -309,7 +310,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgems.NftItem, watched
 
 	if price < threshold {
 		discount := (1 - price/floorPrice) * 100
-		msg := formatAlert(item, floorPrice, price, discount, discountPct)
+		msg := formatAlert(m.cfg.Getgems.WebURL, item, floorPrice, price, discount, discountPct)
 		slog.Info("🔔 Signal found",
 			"nft", shorten(item.Address),
 			"priceNano", price,
@@ -365,7 +366,7 @@ func discountThreshold(watchedCollections map[string]float64, collectionAddress 
 
 // ----- Formatting -----------------------------------------------------------
 
-func formatAlert(item getgems.NftItem, floorPrice, salePrice, actualDiscount, configuredPct float64) string {
+func formatAlert(getgemsWebURL string, item getgems.NftItem, floorPrice, salePrice, actualDiscount, configuredPct float64) string {
 	return fmt.Sprintf(
 		"🚨 *NFT Deal Alert*\n\n"+
 			"📦 *Collection:* `%s`\n"+
@@ -373,13 +374,14 @@ func formatAlert(item getgems.NftItem, floorPrice, salePrice, actualDiscount, co
 			"💰 *Sale Price:* `%.2f TON`\n"+
 			"📊 *Floor Price:* `%.2f TON`\n"+
 			"📉 *Discount:* `%.2f%%` _(threshold: %.0f%%)_\n\n"+
-			"🔗 https://getgems.io/nft/%s",
+			"🔗 %s/nft/%s",
 		item.CollectionAddress,
 		item.Address,
 		tonFromNano(salePrice),
 		tonFromNano(floorPrice),
 		actualDiscount,
 		configuredPct,
+		strings.TrimRight(getgemsWebURL, "/"),
 		item.Address,
 	)
 }

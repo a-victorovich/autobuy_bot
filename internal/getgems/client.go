@@ -8,10 +8,11 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/yourorg/nft-scanner/internal/config"
 )
 
 const (
-	baseURL        = "https://api.testnet.getgems.io/public-api"
 	defaultTimeout = 15 * time.Second
 )
 
@@ -57,7 +58,11 @@ type Client struct {
 
 // New creates a Client with a sensible timeout.
 // apiKey is sent as the Authorization header on every request.
-func New(apiKey string) *Client {
+func New(apiKey, baseURL string) *Client {
+	if baseURL == "" {
+		baseURL = config.DefaultGetgemsBaseURL
+	}
+
 	return &Client{
 		http:    &http.Client{Timeout: defaultTimeout},
 		baseURL: baseURL,

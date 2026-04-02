@@ -33,7 +33,7 @@ func main() {
 		"pollInterval", cfg.Scanner.PollIntervalSeconds,
 	)
 
-	apiClient := getgems.New(cfg.Getgems.APIKey)
+	apiClient := getgems.New(cfg.Getgems.APIKey, cfg.Getgems.BaseURL)
 
 	notifier, err := telegram.New(cfg.Telegram.BotToken, cfg.Telegram.ChatID)
 	if err != nil {
