@@ -29,6 +29,14 @@ type PutUpForSaleTypeData struct {
 	Currency  string `json:"currency"`
 }
 
+type NftKind string
+
+const (
+	NftKindCollectionItem NftKind = "CollectionItem"
+	NftKindDNSItem        NftKind = "DnsItem"
+	NftKindOffchainNFT    NftKind = "OffchainNft"
+)
+
 // NftItemHistoryEvent represents a single NFT history event returned by the API.
 type NftItemHistoryEvent struct {
 	Address           string               `json:"address"`
@@ -39,13 +47,35 @@ type NftItemHistoryEvent struct {
 // GiftHistoryResponse is the envelope returned by /v1/nfts/history/gifts.
 type GiftHistoryResponse struct {
 	Items  []NftItemHistoryEvent `json:"items"`
-	Cursor string    `json:"cursor"`
+	Cursor string                `json:"cursor"`
 }
 
 // CollectionStats is returned by /v1/collection/stats/{collectionAddress}.
 type CollectionStats struct {
 	FloorPrice     float64 `json:"floorPrice"`
 	FloorPriceNano string  `json:"floorPriceNano"`
+}
+
+type NftSaleType string
+
+const (
+	NftSaleTypeFixPriceSale NftSaleType = "FixPriceSale"
+	NftSaleTypeAuction      NftSaleType = "Auction"
+)
+
+// NftResponse is returned by /v1/nft/{nftAddress}.
+type NftResponse struct {
+	Kind NftKind `json:"kind"`
+	Sale NftSale `json:"sale"`
+}
+
+// NftSale stores fields shared across supported sale payloads.
+type NftSale struct {
+	Type         NftSaleType `json:"type"`
+	FullPrice    string      `json:"fullPrice"`
+	Currency     string      `json:"currency"`
+	Version      string      `json:"version"`
+	ContractType string      `json:"contractType"`
 }
 
 // ----- Client ---------------------------------------------------------------
@@ -127,6 +157,17 @@ func (c *Client) GetCollectionStats(ctx context.Context, collectionAddress strin
 	var result CollectionStats
 	if err := c.get(ctx, endpoint, &result); err != nil {
 		return nil, fmt.Errorf("GetCollectionStats(%s): %w", collectionAddress, err)
+	}
+	return &result, nil
+}
+
+// GetNft fetches NFT details for a single NFT address.
+func (c *Client) GetNft(ctx context.Context, nftAddress string) (*NftResponse, error) {
+	endpoint := fmt.Sprintf("%s/v1/nft/%s", c.baseURL, url.PathEscape(nftAddress))
+
+	var result NftResponse
+	if err := c.get(ctx, endpoint, &result); err != nil {
+		return nil, fmt.Errorf("GetNft(%s): %w", nftAddress, err)
 	}
 	return &result, nil
 }

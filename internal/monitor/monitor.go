@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -330,7 +331,24 @@ func (m *Monitor) processItem(ctx context.Context, item getgems.NftItemHistoryEv
 		)
 		if err := m.notifier.SendSignal(ctx, msg); err != nil {
 			slog.Error("Failed to send Telegram alert", "err", err)
+			return
 		}
+
+		nft, err := m.api.GetNft(ctx, item.Address)
+		if err != nil {
+			slog.Error("Failed to fetch NFT sale details",
+				"nft", shorten(item.Address),
+				"err", err,
+			)
+			return
+		}
+
+		ok, saleVersion := validateNftSaleDetails(item, nft)
+		slog.Info("Validated NFT sale details",
+			"nft", shorten(item.Address),
+			"ok", ok,
+			"saleVersion", saleVersion,
+		)
 	}
 }
 
@@ -377,6 +395,35 @@ func discountThreshold(watchedCollections map[string]float64, collectionAddress 
 
 func calculateThreshold(floorPrice, discountPct float64) float64 {
 	return floorPrice * (1 - discountPct/100)
+}
+
+func validateNftSaleDetails(item getgems.NftItemHistoryEvent, nft *getgems.NftResponse) (bool, string) {
+	if nft == nil {
+		return false, ""
+	}
+
+	if nft.Sale.Type != getgems.NftSaleTypeFixPriceSale {
+		return false, nft.Sale.Version
+	}
+
+	if nft.Sale.FullPrice != item.TypeData.PriceNano {
+		return false, nft.Sale.Version
+	}
+
+	if nft.Sale.Currency != item.TypeData.Currency {
+		return false, nft.Sale.Version
+	}
+
+	allowedKinds := []getgems.NftKind{
+		getgems.NftKindCollectionItem,
+		getgems.NftKindDNSItem,
+		getgems.NftKindOffchainNFT,
+	}
+	if !slices.Contains(allowedKinds, nft.Kind) {
+		return false, nft.Sale.Version
+	}
+
+	return true, nft.Sale.Version
 }
 
 // ----- Formatting -----------------------------------------------------------
