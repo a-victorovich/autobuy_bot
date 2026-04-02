@@ -33,6 +33,12 @@ func TestCalculateThreshold(t *testing.T) {
 			discountPct: 20,
 			want:        2_000_000_000,
 		},
+		{
+			name:        "works with nano values and minus discountPct",
+			floorPrice:  2_500_000_000,
+			discountPct: -20,
+			want:        3_000_000_000,
+		},
 	}
 
 	for _, tt := range tests {

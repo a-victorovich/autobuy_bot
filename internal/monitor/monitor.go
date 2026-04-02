@@ -280,6 +280,11 @@ func (m *Monitor) processItem(ctx context.Context, item getgems.NftItem, watched
 		return
 	}
 
+	if (item.TypeData.Currency != "TON") {
+		slog.Debug("Skip non-TON sales", item.TypeData.Currency) // todo check is it a correct log?
+		return
+	}
+
 	floorPrice, ok := m.floorPrice(item.CollectionAddress)
 	if !ok || floorPrice <= 0 {
 		slog.Warn("No floor price available for collection",
@@ -296,7 +301,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgems.NftItem, watched
 	}
 
 	if price <= 0 {
-		return // no valid price — skip
+		return // invalid price — skip
 	}
 
 	slog.Debug("Checking NFT",
@@ -307,7 +312,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgems.NftItem, watched
 		"threshold", threshold,
 	)
 
-	if price < threshold {
+	if price <= threshold {
 		discount := (1 - price/floorPrice) * 100
 		msg := formatAlert(m.cfg.Getgems.WebURL, item, floorPrice, price, discount, discountPct)
 		slog.Info("🔔 Signal found",

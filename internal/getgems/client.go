@@ -26,6 +26,7 @@ type APIResponse[T any] struct {
 // PutUpForSaleTypeData holds pricing data for a listed NFT.
 type PutUpForSaleTypeData struct {
 	PriceNano string `json:"priceNano"`
+	Currency  string `json:"currency"`
 }
 
 // NftItem represents a single NFT returned by the on-sale endpoint.

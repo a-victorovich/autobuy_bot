@@ -108,8 +108,8 @@ func validateCollections(field string, collections map[string]float64) error {
 		if addr == "" {
 			return fmt.Errorf("%s contains an empty collection address", field)
 		}
-		if pct < 0 || pct > 100 {
-			return fmt.Errorf("%s %q: percent must be between 0 and 100, got %v", field, addr, pct)
+		if pct < -100 || pct > 100 {
+			return fmt.Errorf("%s %q: percent must be between -100 and 100, got %v", field, addr, pct)
 		}
 	}
 	return nil
