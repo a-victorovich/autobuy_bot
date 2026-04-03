@@ -11,6 +11,7 @@ import (
 const (
 	DefaultGetgemsBaseURL = "https://api.getgems.io/public-api"
 	DefaultGetgemsWebURL  = "https://getgems.io"
+	DefaultTONConfigURL   = "https://ton-blockchain.github.io/global.config.json"
 )
 
 // Config is the root configuration structure loaded from config.yaml.
@@ -38,7 +39,8 @@ type TelegramConfig struct {
 
 // WalletConfig holds TON wallet credentials.
 type WalletConfig struct {
-	SecretPhrase string `yaml:"secret_phrase"`
+	SecretPhrase     string `yaml:"secret_phrase"`
+	NetworkConfigURL string `yaml:"network_config_url"`
 }
 
 // ScannerConfig holds polling and behaviour settings.
@@ -71,6 +73,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Getgems.WebURL == "" {
 		cfg.Getgems.WebURL = DefaultGetgemsWebURL
+	}
+	if cfg.Wallet.NetworkConfigURL == "" {
+		cfg.Wallet.NetworkConfigURL = DefaultTONConfigURL
 	}
 
 	return &cfg, nil
