@@ -1,6 +1,7 @@
 package getgems
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -76,6 +77,10 @@ type NftSale struct {
 	Currency     string      `json:"currency"`
 	Version      string      `json:"version"`
 	ContractType string      `json:"contractType"`
+}
+
+type createBuyTxRequest struct {
+	Version string `json:"version"`
 }
 
 // ----- Client ---------------------------------------------------------------
@@ -172,6 +177,21 @@ func (c *Client) GetNft(ctx context.Context, nftAddress string) (*NftResponse, e
 	return &result, nil
 }
 
+// CreateBuyTx creates a transaction payload for buying a fixed-price NFT.
+func (c *Client) CreateBuyTx(ctx context.Context, nftAddress, version string) (json.RawMessage, error) {
+	endpoint := fmt.Sprintf("%s/v1/nfts/buy-fix-price/%s", c.baseURL, url.PathEscape(nftAddress))
+
+	body := createBuyTxRequest{
+		Version: version,
+	}
+
+	var result json.RawMessage
+	if err := c.post(ctx, endpoint, body, &result); err != nil {
+		return nil, fmt.Errorf("CreateBuyTx(%s): %w", nftAddress, err)
+	}
+	return result, nil
+}
+
 // ----- internal helpers -----------------------------------------------------
 
 func truncate(s string, n int) string {
@@ -182,12 +202,32 @@ func truncate(s string, n int) string {
 }
 
 func (c *Client) get(ctx context.Context, endpoint string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	return c.do(ctx, http.MethodGet, endpoint, nil, out)
+}
+
+func (c *Client) post(ctx context.Context, endpoint string, payload, out any) error {
+	return c.do(ctx, http.MethodPost, endpoint, payload, out)
+}
+
+func (c *Client) do(ctx context.Context, method, endpoint string, payload, out any) error {
+	var bodyReader io.Reader
+	if payload != nil {
+		body, err := json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("encoding request body: %w", err)
+		}
+		bodyReader = bytes.NewReader(body)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, bodyReader)
 	if err != nil {
 		return fmt.Errorf("building request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", c.apiKey)
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {

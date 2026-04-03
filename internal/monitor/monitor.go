@@ -350,6 +350,22 @@ func (m *Monitor) processItem(ctx context.Context, item getgems.NftItemHistoryEv
 			"ok", ok,
 			"saleVersion", saleVersion,
 		)
+
+		buyTx, err := m.api.CreateBuyTx(ctx, item.Address, saleVersion)
+		if err != nil {
+			slog.Error("Failed to create buy transaction",
+				"nft", shorten(item.Address),
+				"saleVersion", saleVersion,
+				"err", err,
+			)
+			return
+		}
+
+		slog.Info("Created buy transaction",
+			"nft", shorten(item.Address),
+			"saleVersion", saleVersion,
+			"buyTx", string(buyTx),
+		)
 	}
 }
 
