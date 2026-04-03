@@ -121,3 +121,14 @@ GOCACHE=/tmp/go-build-cache go test ./internal/monitor -run TestCalculateThresho
 
 ## Plans to do:
 1) Renew floor price for collections 
+
+
+# nft-scanner
+
+## Getgems OpenAPI generation
+
+Run the generator below to download the latest Getgems OpenAPI document from `https://api.getgems.io/public-api/docs.json` and regenerate the typed client/models in `internal/getgems/openapi/client.gen.go`:
+
+```bash
+make generate-getgems-openapi
+```

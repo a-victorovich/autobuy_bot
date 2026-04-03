@@ -1,4 +1,4 @@
-.PHONY: run build tidy lint
+.PHONY: run build tidy lint generate-getgems-openapi
 
 ## run: run the scanner with default config
 run:
@@ -16,3 +16,7 @@ tidy:
 ## lint: run go vet
 lint:
 	go vet ./...
+
+## generate-getgems-openapi: generate Getgems OpenAPI client/models
+generate-getgems-openapi:
+	go run ./cmd/getgems-openapi-gen
