@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -429,6 +430,12 @@ func validateNftSaleDetails(item getgems.NftItemHistoryEvent, nft *getgems.NftRe
 // ----- Formatting -----------------------------------------------------------
 
 func formatAlert(getgemsWebURL string, item getgems.NftItemHistoryEvent, floorPrice, salePrice, actualDiscount, configuredPct float64) string {
+	nftURL := fmt.Sprintf(
+		"%s/nft/%s",
+		strings.TrimRight(getgemsWebURL, "/"),
+		url.PathEscape(item.Address),
+	)
+
 	return fmt.Sprintf(
 		"🚨 *NFT Deal Alert*\n\n"+
 			"📦 *Collection:* `%s`\n"+
@@ -436,15 +443,14 @@ func formatAlert(getgemsWebURL string, item getgems.NftItemHistoryEvent, floorPr
 			"💰 *Sale Price:* `%.2f TON`\n"+
 			"📊 *Floor Price:* `%.2f TON`\n"+
 			"📉 *Discount:* `%.2f%%` _(threshold: %.0f%%)_\n\n"+
-			"🔗 %s/nft/%s",
+			"🔗 [Open on Getgems](%s)",
 		item.CollectionAddress,
 		item.Address,
 		tonFromNano(salePrice),
 		tonFromNano(floorPrice),
 		actualDiscount,
 		configuredPct,
-		strings.TrimRight(getgemsWebURL, "/"),
-		item.Address,
+		nftURL,
 	)
 }
 
