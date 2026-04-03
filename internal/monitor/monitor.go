@@ -19,6 +19,7 @@ import (
 const (
 	initialCursorLimit = 1
 	historyBatchLimit  = 100
+	floorRefreshEvery  = 5 * time.Minute
 )
 
 var allowedKinds = map[getgemsapi.NftItemFullKind]struct{}{
@@ -73,6 +74,7 @@ func (m *Monitor) Run(ctx context.Context) error {
 
 	interval := time.Duration(m.cfg.Scanner.PollIntervalSeconds) * time.Second
 	slog.Info("Starting history loops", "interval", interval)
+	lastFloorRefreshAt := time.Now()
 
 	giftCursor, err := m.bootstrapGiftCursor(ctx)
 	if err != nil {
@@ -89,6 +91,14 @@ func (m *Monitor) Run(ctx context.Context) error {
 			"giftCursor", shorten(giftCursor),
 			"collectionCursors", len(collectionCursors),
 		)
+
+		if time.Since(lastFloorRefreshAt) >= floorRefreshEvery {
+			if err := m.refreshFloorPrices(ctx); err != nil {
+				slog.Warn("Periodic floor price refresh failed", "err", err)
+			} else {
+				lastFloorRefreshAt = time.Now()
+			}
+		}
 
 		immediate := false
 
