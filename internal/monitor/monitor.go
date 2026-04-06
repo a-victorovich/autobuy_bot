@@ -14,6 +14,7 @@ import (
 	"github.com/yourorg/nft-scanner/internal/config"
 	getgemsapi "github.com/yourorg/nft-scanner/internal/getgems/openapi"
 	"github.com/yourorg/nft-scanner/internal/telegram"
+	"github.com/yourorg/nft-scanner/internal/wallet"
 )
 
 const (
@@ -34,6 +35,7 @@ type Monitor struct {
 	cfg        *config.Config
 	api        *getgemsapi.ClientWithResponses
 	notifier   *telegram.Notifier
+	wallet     *wallet.Wallet
 	floorCache map[string]float64
 	mu         sync.RWMutex
 }
@@ -64,6 +66,10 @@ func New(cfg *config.Config, api *getgemsapi.ClientWithResponses, notifier *tele
 // Run initialises floor prices and then polls for new listings until ctx is
 // cancelled.
 func (m *Monitor) Run(ctx context.Context) error {
+	if err := m.initWallet(); err != nil {
+		return err
+	}
+
 	slog.Info("Initialising floor prices",
 		"collections", len(m.cfg.Collections),
 		"giftCollections", len(m.cfg.GiftCollections),
@@ -137,6 +143,24 @@ func (m *Monitor) Run(ctx context.Context) error {
 		case <-time.After(interval):
 		}
 	}
+}
+
+func (m *Monitor) initWallet() error {
+	if !m.cfg.Scanner.PurchasesEnabled {
+		return nil
+	}
+	if m.wallet != nil {
+		return nil
+	}
+
+	w, err := wallet.New(m.cfg.Wallet)
+	if err != nil {
+		return fmt.Errorf("initialise wallet: %w", err)
+	}
+
+	m.wallet = w
+	slog.Info("Wallet initialised", "address", w.GetAddress())
+	return nil
 }
 
 func (m *Monitor) refreshFloorPrices(ctx context.Context) error {
@@ -340,6 +364,13 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 	)
 	if err := m.notifier.SendSignal(ctx, message); err != nil {
 		slog.Error("Failed to send Telegram alert", "err", err)
+		return
+	}
+
+	if !m.cfg.Scanner.PurchasesEnabled {
+		slog.Info("Buy flow is disabled; skipping buy transaction creation",
+			"nft", shorten(event.Address),
+		)
 		return
 	}
 

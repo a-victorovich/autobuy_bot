@@ -2,6 +2,7 @@
 
 A Go service that monitors Getgems NFT listings and sends Telegram alerts when
 items are priced below a configurable percentage of the collection floor price.
+The codebase also includes generated clients for Getgems and TON Center APIs.
 
 ## How it works
 
@@ -51,11 +52,16 @@ wallet:
 
 scanner:
   poll_interval_seconds: 30       # How often to scan (default: 30)
+  purchases_enabled: false        # false = only Telegram alerts, true = also create buy transaction data
 
 getgems:
   api_key: "YOUR_GETGEMS_API_KEY_HERE"
   base_url: "https://api.getgems.io/public-api"  # Optional; defaults to this value
   web_url: "https://getgems.io"                  # Optional; used for alert links
+
+toncenter:
+  api_key: "YOUR_TONCENTER_API_KEY_HERE"         # Optional unless your usage requires it
+  base_url: "https://toncenter.com/api/v2"       # Optional; defaults to this value
 
 collections:
   "EQD...address1": 10  # Alert if price < floorPrice * 0.90  (10% off)
@@ -103,6 +109,9 @@ WantedBy=multi-user.target
 │   │   └── config.go        # YAML config loading & validation
 │   ├── getgems/
 │   │   └── client.go        # Getgems API HTTP client
+│   ├── toncenter/
+│   │   ├── client.go        # TON Center API HTTP client wrapper
+│   │   └── openapi/         # Generated TON Center OpenAPI client/models
 │   ├── telegram/
 │   │   └── notifier.go      # Telegram bot wrapper
 │   ├── wallet/
@@ -131,4 +140,12 @@ Run the generator below to download the latest Getgems OpenAPI document from `ht
 
 ```bash
 make generate-getgems-openapi
+```
+
+## TON Center OpenAPI generation
+
+Run the generator below to download the latest TON Center OpenAPI document from `https://toncenter.com/api/v2/openapi.json` and regenerate the typed client/models in `internal/toncenter/openapi/client.gen.go`:
+
+```bash
+make generate-toncenter-openapi
 ```

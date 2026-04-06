@@ -7,6 +7,7 @@ wallet:
 
 scanner:
   poll_interval_seconds: 30
+  purchases_enabled: false  # false = only Telegram alerts, true = also create buy transaction data
 
 getgems:
   api_key: "YOUR_GETGEMS_API_KEY_HERE"

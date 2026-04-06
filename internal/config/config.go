@@ -53,7 +53,8 @@ type WalletConfig struct {
 
 // ScannerConfig holds polling and behaviour settings.
 type ScannerConfig struct {
-	PollIntervalSeconds int `yaml:"poll_interval_seconds"`
+	PollIntervalSeconds int  `yaml:"poll_interval_seconds"`
+	PurchasesEnabled    bool `yaml:"purchases_enabled"`
 }
 
 // Load reads and parses the YAML config file at the given path.

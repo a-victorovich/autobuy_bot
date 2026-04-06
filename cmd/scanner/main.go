@@ -31,6 +31,7 @@ func main() {
 		"collections", len(cfg.Collections),
 		"giftCollections", len(cfg.GiftCollections),
 		"pollInterval", cfg.Scanner.PollIntervalSeconds,
+		"purchasesEnabled", cfg.Scanner.PurchasesEnabled,
 	)
 
 	apiClient := getgems.New(cfg.Getgems.APIKey, cfg.Getgems.BaseURL)
