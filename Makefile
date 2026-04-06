@@ -1,4 +1,4 @@
-.PHONY: run build tidy lint generate-getgems-openapi
+.PHONY: run build tidy lint generate-getgems-openapi generate-toncenter-openapi
 
 ## run: run the scanner with default config
 run:
@@ -20,3 +20,7 @@ lint:
 ## generate-getgems-openapi: generate Getgems OpenAPI client/models
 generate-getgems-openapi:
 	go run ./cmd/getgems-openapi-gen
+
+## generate-toncenter-openapi: generate TON Center OpenAPI client/models
+generate-toncenter-openapi:
+	go run ./cmd/toncenter-openapi-gen

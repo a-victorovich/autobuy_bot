@@ -9,15 +9,17 @@ import (
 )
 
 const (
-	DefaultGetgemsBaseURL = "https://api.getgems.io/public-api"
-	DefaultGetgemsWebURL  = "https://getgems.io"
-	DefaultTONConfigURL   = "https://ton-blockchain.github.io/global.config.json"
+	DefaultGetgemsBaseURL   = "https://api.getgems.io/public-api"
+	DefaultGetgemsWebURL    = "https://getgems.io"
+	DefaultToncenterBaseURL = "https://toncenter.com/api/v2"
+	DefaultTONConfigURL     = "https://ton-blockchain.github.io/global.config.json"
 )
 
 // Config is the root configuration structure loaded from config.yaml.
 type Config struct {
 	Telegram        TelegramConfig     `yaml:"telegram"`
 	Getgems         GetgemsConfig      `yaml:"getgems"`
+	Toncenter       ToncenterConfig    `yaml:"toncenter"`
 	Wallet          WalletConfig       `yaml:"wallet"`
 	Scanner         ScannerConfig      `yaml:"scanner"`
 	Collections     map[string]float64 `yaml:"collections"`      // collectionAddress -> discount percent
@@ -29,6 +31,12 @@ type GetgemsConfig struct {
 	APIKey  string `yaml:"api_key"`
 	BaseURL string `yaml:"base_url"`
 	WebURL  string `yaml:"web_url"`
+}
+
+// ToncenterConfig holds credentials for the TON Center API v2.
+type ToncenterConfig struct {
+	APIKey  string `yaml:"api_key"`
+	BaseURL string `yaml:"base_url"`
 }
 
 // TelegramConfig holds Telegram bot credentials and target chat.
@@ -73,6 +81,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Getgems.WebURL == "" {
 		cfg.Getgems.WebURL = DefaultGetgemsWebURL
+	}
+	if cfg.Toncenter.BaseURL == "" {
+		cfg.Toncenter.BaseURL = DefaultToncenterBaseURL
 	}
 	if cfg.Wallet.NetworkConfigURL == "" {
 		cfg.Wallet.NetworkConfigURL = DefaultTONConfigURL

@@ -13,6 +13,10 @@ getgems:
   base_url: "https://api.getgems.io/public-api"  # Optional; defaults to mainnet public API
   web_url: "https://getgems.io"                  # Optional; defaults to the public website
 
+toncenter:
+  api_key: "YOUR_TONCENTER_API_KEY_HERE"
+  base_url: "https://toncenter.com/api/v2"       # Optional; defaults to mainnet API v2
+
 collections:
   # collectionAddress: discount percent (e.g. 10 means "alert if price < floorPrice * 0.90")
   "EQD...collectionAddress1": 10

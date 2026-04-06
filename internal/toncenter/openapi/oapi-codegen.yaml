@@ -1,0 +1,8 @@
+package: openapi
+output: internal/toncenter/openapi/client.gen.go
+generate:
+  client: true
+  models: true
+output-options:
+  response-type-suffix: Resp
+  skip-prune: true
