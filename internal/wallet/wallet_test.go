@@ -138,7 +138,7 @@ func TestNewAndGetAddress(t *testing.T) {
 
 func TestSignTransaction(t *testing.T) {
 	words := tonwallet.NewSeed()
-	instance, err := tonwallet.FromSeedWithOptions(nil, words, tonwallet.V3)
+	instance, err := tonwallet.FromSeedWithOptions(nil, words, tonwallet.V4R2)
 	if err != nil {
 		t.Fatalf("create instance: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestSignTransaction(t *testing.T) {
 
 func TestSignTransactionIncludesStateInitForUninitializedWallet(t *testing.T) {
 	words := tonwallet.NewSeed()
-	instance, err := tonwallet.FromSeedWithOptions(nil, words, tonwallet.V3)
+	instance, err := tonwallet.FromSeedWithOptions(nil, words, tonwallet.V4R2)
 	if err != nil {
 		t.Fatalf("create instance: %v", err)
 	}

@@ -55,7 +55,7 @@ func New(cfg config.WalletConfig) (*Wallet, error) {
 		return nil, err
 	}
 
-	instance, err := tonwallet.FromSeedWithOptions(nil, words, tonwallet.V3)
+	instance, err := tonwallet.FromSeedWithOptions(nil, words, tonwallet.V4R2)
 	if err != nil {
 		return nil, fmt.Errorf("create TON wallet from seed: %w", err)
 	}
@@ -132,7 +132,7 @@ func (w *Wallet) ensureAPI(ctx context.Context) (tonwallet.TonAPI, error) {
 	}
 
 	api := ton.NewAPIClient(client).WithRetry()
-	instance, err := tonwallet.FromSeedWithOptions(api, w.words, tonwallet.V3)
+	instance, err := tonwallet.FromSeedWithOptions(api, w.words, tonwallet.V4R2)
 	if err != nil {
 		return nil, fmt.Errorf("recreate TON wallet with API: %w", err)
 	}
@@ -174,7 +174,7 @@ func (w *Wallet) buildExternalMessage(seqno uint32, expireAt uint32, withStateIn
 	if withStateInit {
 		publicKey := privateKey.Public().(ed25519.PublicKey)
 		var err error
-		stateInit, err = tonwallet.GetStateInit(publicKey, tonwallet.V3, w.instance.GetSubwalletID())
+		stateInit, err = tonwallet.GetStateInit(publicKey, tonwallet.V4R2, w.instance.GetSubwalletID())
 		if err != nil {
 			return nil, fmt.Errorf("build wallet state init: %w", err)
 		}

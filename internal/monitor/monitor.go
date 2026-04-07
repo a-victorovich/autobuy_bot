@@ -442,10 +442,47 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		return
 	}
 
-	slog.Info("Signed buy transaction",
+	slog.Info("Signed buy transaction was created", "nft", event.Address)
+
+	// slog.Info("Signed buy transaction",
+	// 	"nft", shorten(event.Address),
+	// 	"saleVersion", saleVersion,
+	// 	"boc", base64.StdEncoding.EncodeToString(signedBOC),
+	// )
+
+	sendBocResp, err := m.toncenter.SendBocPostWithResponse(ctx, toncenterapi.SendBocRequest{
+		Boc: base64.StdEncoding.EncodeToString(signedBOC),
+	})
+
+	if notifyErr := m.notifier.SendTransactionResult(ctx, event.Address, saleVersion, sendBocResp, err); notifyErr != nil {
+		slog.Error("Failed to send Telegram transaction result",
+			"nft", shorten(event.Address),
+			"saleVersion", saleVersion,
+			"err", notifyErr,
+		)
+	}
+
+	if err != nil {
+		slog.Error("Failed to send signed buy transaction",
+			"nft", shorten(event.Address),
+			"saleVersion", saleVersion,
+			"err", err,
+		)
+		return
+	}
+	if sendBocResp.JSON200 == nil || !sendBocResp.JSON200.Ok {
+		slog.Error("Toncenter rejected signed buy transaction",
+			"nft", shorten(event.Address),
+			"saleVersion", saleVersion,
+			"status", sendBocResp.StatusCode(),
+			"body", string(sendBocResp.Body),
+		)
+		return
+	}
+
+	slog.Info("Signed buy transaction was sent",
 		"nft", shorten(event.Address),
 		"saleVersion", saleVersion,
-		"boc", base64.StdEncoding.EncodeToString(signedBOC),
 	)
 }
 
