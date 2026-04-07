@@ -73,7 +73,7 @@ func (w *Wallet) GetAddress() string {
 }
 
 // SignTransaction signs a TON Connect sendTransaction request and returns the external message BOC.
-func (w *Wallet) SignTransaction(ctx context.Context, seqno uint32, req SendTransactionRequest) ([]byte, error) {
+func (w *Wallet) SignTransaction(ctx context.Context, seqno uint32, withStateInit bool, req SendTransactionRequest) ([]byte, error) {
 	if len(req.Messages) == 0 {
 		return nil, errors.New("transaction must contain at least one message")
 	}
@@ -101,7 +101,7 @@ func (w *Wallet) SignTransaction(ctx context.Context, seqno uint32, req SendTran
 		return nil, err
 	}
 
-	ext, err := w.buildExternalMessage(seqno, expireAt, true, messages)
+	ext, err := w.buildExternalMessage(seqno, expireAt, withStateInit, messages)
 	if err != nil {
 		return nil, err
 	}

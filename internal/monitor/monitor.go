@@ -421,7 +421,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		return
 	}
 
-	seqno, err := m.fetchWalletSeqno(ctx)
+	seqno, acctountState, err := m.fetchWalletSeqno(ctx)
 	if err != nil {
 		slog.Error("Failed to fetch wallet seqno",
 			"nft", shorten(event.Address),
@@ -432,7 +432,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		return
 	}
 
-	signedBOC, err := m.wallet.SignTransaction(ctx, seqno, signReq)
+	signedBOC, err := m.wallet.SignTransaction(ctx, seqno, acctountState != "uninitialized", signReq)
 	if err != nil {
 		slog.Error("Failed to sign buy transaction",
 			"nft", shorten(event.Address),
@@ -449,33 +449,34 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 	)
 }
 
-func (m *Monitor) fetchWalletSeqno(ctx context.Context) (uint32, error) {
+func (m *Monitor) fetchWalletSeqno(ctx context.Context) (uint32, string, error) {
 	walletAddress := m.wallet.GetAddress()
 
 	walletInfoResp, err := m.toncenter.GetWalletInformationGetWithResponse(ctx, &toncenterapi.GetWalletInformationGetParams{
 		Address: walletAddress,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("get wallet information: %w", err)
+		return 0, "", fmt.Errorf("get wallet information: %w", err)
 	}
 	if walletInfoResp.JSON200 == nil || !walletInfoResp.JSON200.Ok {
-		return 0, fmt.Errorf("get wallet information: status=%d body=%s", walletInfoResp.StatusCode(), string(walletInfoResp.Body))
+		return 0, "", fmt.Errorf("get wallet information: status=%d body=%s", walletInfoResp.StatusCode(), string(walletInfoResp.Body))
 	}
 
 	walletInfoObj, err := walletInfoResp.JSON200.Result.AsTonlibObject()
 	if err != nil {
-		return 0, fmt.Errorf("decode wallet information result: %w", err)
+		return 0, "", fmt.Errorf("decode wallet information result: %w", err)
 	}
 
 	walletInfo, err := walletInfoObj.AsWalletInformation()
 	if err != nil {
-		return 0, fmt.Errorf("decode wallet information payload: %w", err)
-	}
-	if walletInfo.Seqno == nil {
-		return 0, fmt.Errorf("wallet information response is missing seqno")
+		return 0, "", fmt.Errorf("decode wallet information payload: %w", err)
 	}
 
-	return uint32(*walletInfo.Seqno), nil
+	if walletInfo.Seqno == nil {
+		return 0, string(walletInfo.AccountState), nil
+	}
+
+	return uint32(*walletInfo.Seqno), string(walletInfo.AccountState), nil
 }
 
 func (m *Monitor) fetchCollectionFloorPriceNano(ctx context.Context, collectionAddress string) (string, error) {
@@ -794,11 +795,11 @@ func buildWalletSendTransactionRequest(resp *getgemsapi.V1BuyNftFixPriceResp) (w
 	}
 
 	if tx.Timeout != nil && strings.TrimSpace(*tx.Timeout) != "" {
-		validUntil, err := strconv.ParseInt(strings.TrimSpace(*tx.Timeout), 10, 64)
+		validUntil, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(*tx.Timeout))
 		if err != nil {
 			return wallet.SendTransactionRequest{}, fmt.Errorf("parse transaction timeout: %w", err)
 		}
-		req.ValidUntil = validUntil
+		req.ValidUntil = validUntil.Unix()
 	}
 
 	if tx.List != nil {

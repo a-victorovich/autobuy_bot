@@ -16,7 +16,7 @@ getgems:
 
 toncenter:
   api_key: "YOUR_TONCENTER_API_KEY_HERE"
-  base_url: "https://toncenter.com/api/v2"       # Optional; defaults to mainnet API v2
+  base_url: "https://toncenter.com"       # Optional; defaults to mainnet API v2
 
 collections:
   # collectionAddress: discount percent (e.g. 10 means "alert if price < floorPrice * 0.90")
