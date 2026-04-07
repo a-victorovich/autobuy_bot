@@ -73,7 +73,7 @@ func (w *Wallet) GetAddress() string {
 }
 
 // SignTransaction signs a TON Connect sendTransaction request and returns the external message BOC.
-func (w *Wallet) SignTransaction(ctx context.Context, req SendTransactionRequest) ([]byte, error) {
+func (w *Wallet) SignTransaction(ctx context.Context, seqno uint32, req SendTransactionRequest) ([]byte, error) {
 	if len(req.Messages) == 0 {
 		return nil, errors.New("transaction must contain at least one message")
 	}
@@ -101,12 +101,7 @@ func (w *Wallet) SignTransaction(ctx context.Context, req SendTransactionRequest
 		return nil, err
 	}
 
-	initialized, seqno, err := w.detectWalletState(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	ext, err := w.buildExternalMessage(seqno, expireAt, !initialized, messages)
+	ext, err := w.buildExternalMessage(seqno, expireAt, true, messages)
 	if err != nil {
 		return nil, err
 	}
@@ -117,43 +112,6 @@ func (w *Wallet) SignTransaction(ctx context.Context, req SendTransactionRequest
 	}
 
 	return msgCell.ToBOC(), nil
-}
-
-func (w *Wallet) detectWalletState(ctx context.Context) (initialized bool, seqno uint32, err error) {
-	api, err := w.ensureAPI(ctx)
-	if err != nil {
-		return false, 0, err
-	}
-
-	block, err := api.CurrentMasterchainInfo(ctx)
-	if err != nil {
-		return false, 0, fmt.Errorf("get current masterchain info: %w", err)
-	}
-
-	acc, err := api.WaitForBlock(block.SeqNo).GetAccount(ctx, block, w.instance.WalletAddress())
-	if err != nil {
-		return false, 0, fmt.Errorf("get wallet account state: %w", err)
-	}
-
-	if !acc.IsActive || acc.State == nil || acc.State.Status != tlb.AccountStatusActive {
-		return false, 0, nil
-	}
-
-	res, err := api.WaitForBlock(block.SeqNo).RunGetMethod(ctx, block, w.instance.WalletAddress(), "seqno")
-	if err != nil {
-		var execErr ton.ContractExecError
-		if errors.As(err, &execErr) && execErr.Code == ton.ErrCodeContractNotInitialized {
-			return false, 0, nil
-		}
-		return false, 0, fmt.Errorf("get wallet seqno: %w", err)
-	}
-
-	iSeqno, err := res.Int(0)
-	if err != nil {
-		return false, 0, fmt.Errorf("parse wallet seqno: %w", err)
-	}
-
-	return true, uint32(iSeqno.Uint64()), nil
 }
 
 func (w *Wallet) ensureAPI(ctx context.Context) (tonwallet.TonAPI, error) {

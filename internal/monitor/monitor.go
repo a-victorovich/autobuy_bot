@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -14,6 +15,8 @@ import (
 	"github.com/yourorg/nft-scanner/internal/config"
 	getgemsapi "github.com/yourorg/nft-scanner/internal/getgems/openapi"
 	"github.com/yourorg/nft-scanner/internal/telegram"
+	"github.com/yourorg/nft-scanner/internal/toncenter"
+	toncenterapi "github.com/yourorg/nft-scanner/internal/toncenter/openapi"
 	"github.com/yourorg/nft-scanner/internal/wallet"
 )
 
@@ -35,6 +38,7 @@ type Monitor struct {
 	cfg        *config.Config
 	api        *getgemsapi.ClientWithResponses
 	notifier   *telegram.Notifier
+	toncenter  *toncenterapi.ClientWithResponses
 	wallet     *wallet.Wallet
 	floorCache map[string]float64
 	mu         sync.RWMutex
@@ -59,6 +63,7 @@ func New(cfg *config.Config, api *getgemsapi.ClientWithResponses, notifier *tele
 		cfg:        cfg,
 		api:        api,
 		notifier:   notifier,
+		toncenter:  toncenter.New(cfg.Toncenter.APIKey, cfg.Toncenter.BaseURL),
 		floorCache: make(map[string]float64, cacheSize),
 	}
 }
@@ -405,6 +410,72 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		"saleVersion", saleVersion,
 		"buyTx", formatBuyTransactionLog(buyTx),
 	)
+
+	signReq, err := buildWalletSendTransactionRequest(buyTx)
+	if err != nil {
+		slog.Error("Failed to build wallet sign request",
+			"nft", shorten(event.Address),
+			"saleVersion", saleVersion,
+			"err", err,
+		)
+		return
+	}
+
+	seqno, err := m.fetchWalletSeqno(ctx)
+	if err != nil {
+		slog.Error("Failed to fetch wallet seqno",
+			"nft", shorten(event.Address),
+			"saleVersion", saleVersion,
+			"wallet", shorten(m.wallet.GetAddress()),
+			"err", err,
+		)
+		return
+	}
+
+	signedBOC, err := m.wallet.SignTransaction(ctx, seqno, signReq)
+	if err != nil {
+		slog.Error("Failed to sign buy transaction",
+			"nft", shorten(event.Address),
+			"saleVersion", saleVersion,
+			"err", err,
+		)
+		return
+	}
+
+	slog.Info("Signed buy transaction",
+		"nft", shorten(event.Address),
+		"saleVersion", saleVersion,
+		"boc", base64.StdEncoding.EncodeToString(signedBOC),
+	)
+}
+
+func (m *Monitor) fetchWalletSeqno(ctx context.Context) (uint32, error) {
+	walletAddress := m.wallet.GetAddress()
+
+	walletInfoResp, err := m.toncenter.GetWalletInformationGetWithResponse(ctx, &toncenterapi.GetWalletInformationGetParams{
+		Address: walletAddress,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("get wallet information: %w", err)
+	}
+	if walletInfoResp.JSON200 == nil || !walletInfoResp.JSON200.Ok {
+		return 0, fmt.Errorf("get wallet information: status=%d body=%s", walletInfoResp.StatusCode(), string(walletInfoResp.Body))
+	}
+
+	walletInfoObj, err := walletInfoResp.JSON200.Result.AsTonlibObject()
+	if err != nil {
+		return 0, fmt.Errorf("decode wallet information result: %w", err)
+	}
+
+	walletInfo, err := walletInfoObj.AsWalletInformation()
+	if err != nil {
+		return 0, fmt.Errorf("decode wallet information payload: %w", err)
+	}
+	if walletInfo.Seqno == nil {
+		return 0, fmt.Errorf("wallet information response is missing seqno")
+	}
+
+	return uint32(*walletInfo.Seqno), nil
 }
 
 func (m *Monitor) fetchCollectionFloorPriceNano(ctx context.Context, collectionAddress string) (string, error) {
@@ -708,4 +779,56 @@ func formatBuyTransactionLog(resp *getgemsapi.V1BuyNftFixPriceResp) string {
 		return string(resp.Body)
 	}
 	return string(body)
+}
+
+func buildWalletSendTransactionRequest(resp *getgemsapi.V1BuyNftFixPriceResp) (wallet.SendTransactionRequest, error) {
+	if resp == nil || resp.JSON200 == nil || resp.JSON200.Response == nil {
+		return wallet.SendTransactionRequest{}, fmt.Errorf("empty buy transaction response")
+	}
+
+	tx := resp.JSON200.Response
+	req := wallet.SendTransactionRequest{}
+
+	if tx.From != nil {
+		req.From = *tx.From
+	}
+
+	if tx.Timeout != nil && strings.TrimSpace(*tx.Timeout) != "" {
+		validUntil, err := strconv.ParseInt(strings.TrimSpace(*tx.Timeout), 10, 64)
+		if err != nil {
+			return wallet.SendTransactionRequest{}, fmt.Errorf("parse transaction timeout: %w", err)
+		}
+		req.ValidUntil = validUntil
+	}
+
+	if tx.List != nil {
+		req.Messages = make([]wallet.SendTransactionMessage, 0, len(*tx.List))
+		for i, item := range *tx.List {
+			if item.To == nil || strings.TrimSpace(*item.To) == "" {
+				return wallet.SendTransactionRequest{}, fmt.Errorf("message %d has empty destination", i)
+			}
+			if item.Amount == nil || strings.TrimSpace(*item.Amount) == "" {
+				return wallet.SendTransactionRequest{}, fmt.Errorf("message %d has empty amount", i)
+			}
+
+			msg := wallet.SendTransactionMessage{
+				Address: strings.TrimSpace(*item.To),
+				Amount:  strings.TrimSpace(*item.Amount),
+			}
+			if item.Payload != nil {
+				msg.Payload = strings.TrimSpace(*item.Payload)
+			}
+			if item.StateInit != nil {
+				msg.StateInit = strings.TrimSpace(*item.StateInit)
+			}
+
+			req.Messages = append(req.Messages, msg)
+		}
+	}
+
+	if len(req.Messages) == 0 {
+		return wallet.SendTransactionRequest{}, fmt.Errorf("buy transaction response has no messages")
+	}
+
+	return req, nil
 }
