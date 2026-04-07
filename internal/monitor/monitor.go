@@ -432,7 +432,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		return
 	}
 
-	signedBOC, err := m.wallet.SignTransaction(ctx, seqno, acctountState != "uninitialized", signReq)
+	signedBOC, err := m.wallet.SignTransaction(ctx, seqno, acctountState == "uninitialized", signReq)
 	if err != nil {
 		slog.Error("Failed to sign buy transaction",
 			"nft", shorten(event.Address),
@@ -443,12 +443,6 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 	}
 
 	slog.Info("Signed buy transaction was created", "nft", event.Address)
-
-	// slog.Info("Signed buy transaction",
-	// 	"nft", shorten(event.Address),
-	// 	"saleVersion", saleVersion,
-	// 	"boc", base64.StdEncoding.EncodeToString(signedBOC),
-	// )
 
 	sendBocResp, err := m.toncenter.SendBocPostWithResponse(ctx, toncenterapi.SendBocRequest{
 		Boc: base64.StdEncoding.EncodeToString(signedBOC),
