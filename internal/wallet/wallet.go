@@ -81,71 +81,25 @@ func (w *Wallet) BuildSignedBOC(ctx context.Context, seqno uint32, withStateInit
 	if w == nil || w.instance == nil {
 		return nil, errors.New("wallet instance is not initialized")
 	}
+	if incomeTx.List == nil || len(*incomeTx.List) == 0 {
+		return nil, errors.New("transaction has no messages")
+	}
+	if len(*incomeTx.List) > 4 {
+		return nil, errors.New("for this type of wallet max 4 messages can be sent in the same time")
+	}
 
-	req := SendTransactionRequest{}
+	var validUntil int64
 	if incomeTx.Timeout != nil && strings.TrimSpace(*incomeTx.Timeout) != "" {
-		validUntil, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(*incomeTx.Timeout))
+		parsedValidUntil, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(*incomeTx.Timeout))
 		if err != nil {
 			return nil, fmt.Errorf("parse transaction timeout: %w", err)
 		}
-		req.ValidUntil = validUntil.Unix()
+		validUntil = parsedValidUntil.Unix()
 	}
 
-	if incomeTx.List != nil {
-		req.Messages = make([]SendTransactionMessage, 0, len(*incomeTx.List))
-		for i, item := range *incomeTx.List {
-			if item.To == nil || strings.TrimSpace(*item.To) == "" {
-				return nil, fmt.Errorf("message %d has empty destination", i)
-			}
-			if item.Amount == nil || strings.TrimSpace(*item.Amount) == "" {
-				return nil, fmt.Errorf("message %d has empty amount", i)
-			}
-
-			msg := SendTransactionMessage{
-				Address: strings.TrimSpace(*item.To),
-				Amount:  strings.TrimSpace(*item.Amount),
-			}
-			if item.Payload != nil {
-				msg.Payload = strings.TrimSpace(*item.Payload)
-			}
-			if item.StateInit != nil {
-				msg.StateInit = strings.TrimSpace(*item.StateInit)
-			}
-
-			req.Messages = append(req.Messages, msg)
-		}
-	}
-
-	if len(req.Messages) == 0 {
-		return nil, errors.New("transaction has no messages")
-	}
-
-	messages, err := buildMessages(req.Messages)
+	expireAt, err := resolveExpireAt(validUntil, time.Now())
 	if err != nil {
 		return nil, err
-	}
-
-	expireAt, err := resolveExpireAt(req.ValidUntil, time.Now())
-	if err != nil {
-		return nil, err
-	}
-
-	ext, err := w.buildExternalMessage(seqno, expireAt, withStateInit, messages)
-	if err != nil {
-		return nil, err
-	}
-
-	msgCell, err := tlb.ToCell(ext)
-	if err != nil {
-		return nil, fmt.Errorf("serialize external message: %w", err)
-	}
-
-	return msgCell.ToBOC(), nil
-}
-
-func (w *Wallet) buildExternalMessage(seqno uint32, expireAt uint32, withStateInit bool, messages []*tonwallet.Message) (*tlb.ExternalMessage, error) {
-	if len(messages) > 4 {
-		return nil, errors.New("for this type of wallet max 4 messages can be sent in the same time")
 	}
 
 	payload := cell.BeginCell().
@@ -153,12 +107,66 @@ func (w *Wallet) buildExternalMessage(seqno uint32, expireAt uint32, withStateIn
 		MustStoreUInt(uint64(expireAt), 32).
 		MustStoreUInt(uint64(seqno), 32)
 
-	for i, message := range messages {
-		intMsg, err := tlb.ToCell(message.InternalMessage)
+	for i, item := range *incomeTx.List {
+		if item.To == nil || strings.TrimSpace(*item.To) == "" {
+			return nil, fmt.Errorf("message %d has empty destination", i)
+		}
+		if item.Amount == nil || strings.TrimSpace(*item.Amount) == "" {
+			return nil, fmt.Errorf("message %d has empty amount", i)
+		}
+
+		dst, err := address.ParseAddr(strings.TrimSpace(*item.To))
+		if err != nil {
+			return nil, fmt.Errorf("parse message %d destination: %w", i, err)
+		}
+
+		amount, err := tlb.FromNanoTONStr(strings.TrimSpace(*item.Amount))
+		if err != nil {
+			return nil, fmt.Errorf("parse message %d amount: %w", i, err)
+		}
+
+		var body *cell.Cell
+		if item.Payload != nil && strings.TrimSpace(*item.Payload) != "" {
+			payloadBytes, err := base64.StdEncoding.DecodeString(strings.TrimSpace(*item.Payload))
+			if err != nil {
+				return nil, fmt.Errorf("decode message %d payload: %w", i, err)
+			}
+
+			body, err = cell.FromBOC(payloadBytes)
+			if err != nil {
+				return nil, fmt.Errorf("parse message %d payload BOC: %w", i, err)
+			}
+		}
+
+		var stateInit *tlb.StateInit
+		if item.StateInit != nil && strings.TrimSpace(*item.StateInit) != "" {
+			stateInitCell, err := decodeCellBOC(strings.TrimSpace(*item.StateInit))
+			if err != nil {
+				return nil, fmt.Errorf("decode message %d state init: %w", i, err)
+			}
+
+			if stateInitCell != nil {
+				var loadedStateInit tlb.StateInit
+				if err := tlb.LoadFromCell(&loadedStateInit, stateInitCell.BeginParse()); err != nil {
+					return nil, fmt.Errorf("parse message %d state init: %w", i, err)
+				}
+				stateInit = &loadedStateInit
+			}
+		}
+
+		intMsg, err := tlb.ToCell(&tlb.InternalMessage{
+			IHRDisabled: true,
+			Bounce:      dst.IsBounceable(),
+			DstAddr:     dst,
+			Amount:      amount,
+			StateInit:   stateInit,
+			Body:        body,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("convert internal message %d to cell: %w", i, err)
 		}
-		payload.MustStoreUInt(uint64(message.Mode), 8).MustStoreRef(intMsg)
+
+		payload.MustStoreUInt(uint64(tonwallet.PayGasSeparately+tonwallet.IgnoreErrors), 8).MustStoreRef(intMsg)
 	}
 
 	payloadCell := payload.EndCell()
@@ -174,58 +182,22 @@ func (w *Wallet) buildExternalMessage(seqno uint32, expireAt uint32, withStateIn
 	var stateInit *tlb.StateInit
 	if withStateInit {
 		publicKey := privateKey.Public().(ed25519.PublicKey)
-		var err error
 		stateInit, err = tonwallet.GetStateInit(publicKey, tonwallet.V4R2, w.instance.GetSubwalletID())
 		if err != nil {
 			return nil, fmt.Errorf("build wallet state init: %w", err)
 		}
 	}
 
-	return &tlb.ExternalMessage{
+	msgCell, err := tlb.ToCell(&tlb.ExternalMessage{
 		DstAddr:   w.instance.WalletAddress(),
 		StateInit: stateInit,
 		Body:      body,
-	}, nil
-}
-
-func buildMessages(reqMessages []SendTransactionMessage) ([]*tonwallet.Message, error) {
-	messages := make([]*tonwallet.Message, 0, len(reqMessages))
-
-	for i, msg := range reqMessages {
-		dst, err := address.ParseAddr(msg.Address)
-		if err != nil {
-			return nil, fmt.Errorf("parse message %d destination: %w", i, err)
-		}
-
-		amount, err := tlb.FromNanoTONStr(msg.Amount)
-		if err != nil {
-			return nil, fmt.Errorf("parse message %d amount: %w", i, err)
-		}
-
-		payload, err := decodeCellBOC(msg.Payload)
-		if err != nil {
-			return nil, fmt.Errorf("decode message %d payload: %w", i, err)
-		}
-
-		stateInit, err := decodeStateInit(msg.StateInit)
-		if err != nil {
-			return nil, fmt.Errorf("decode message %d state init: %w", i, err)
-		}
-
-		messages = append(messages, &tonwallet.Message{
-			Mode: tonwallet.PayGasSeparately + tonwallet.IgnoreErrors,
-			InternalMessage: &tlb.InternalMessage{
-				IHRDisabled: true,
-				Bounce:      dst.IsBounceable(),
-				DstAddr:     dst,
-				Amount:      amount,
-				StateInit:   stateInit,
-				Body:        payload,
-			},
-		})
+	})
+	if err != nil {
+		return nil, fmt.Errorf("serialize external message: %w", err)
 	}
 
-	return messages, nil
+	return msgCell.ToBOC(), nil
 }
 
 func decodeStateInit(value string) (*tlb.StateInit, error) {
