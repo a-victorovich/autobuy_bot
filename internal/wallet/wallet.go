@@ -164,6 +164,15 @@ func (w *Wallet) buildInitBody() (*cell.Cell, error) {
 }
 
 func (w *Wallet) BuildSignedBOC(ctx context.Context, seqno uint32, withStateInit bool, incomeTx *getgemsapi.Transaction) ([]byte, error) {
+	switch v := w.version.(type) {
+	case tonwallet.ConfigV5R1Final:
+		return w.BuildSignedBOCV5(ctx, seqno, withStateInit, incomeTx, v)
+	default:
+		return w.BuildSignedBOCV4(ctx, seqno, withStateInit, incomeTx)
+	}
+}
+
+func (w *Wallet) BuildSignedBOCV4(ctx context.Context, seqno uint32, withStateInit bool, incomeTx *getgemsapi.Transaction) ([]byte, error) {
 	if incomeTx == nil {
 		return nil, errors.New("transaction is nil")
 	}
@@ -177,16 +186,7 @@ func (w *Wallet) BuildSignedBOC(ctx context.Context, seqno uint32, withStateInit
 		return nil, errors.New("for this type of wallet max 4 messages can be sent in the same time")
 	}
 
-	var validUntil int64
-	if incomeTx.Timeout != nil && strings.TrimSpace(*incomeTx.Timeout) != "" {
-		parsedValidUntil, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(*incomeTx.Timeout))
-		if err != nil {
-			return nil, fmt.Errorf("parse transaction timeout: %w", err)
-		}
-		validUntil = parsedValidUntil.Unix()
-	}
-
-	expireAt, err := resolveExpireAt(validUntil, time.Now())
+	expireAt, err := transactionExpireAt(incomeTx, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -197,6 +197,86 @@ func (w *Wallet) BuildSignedBOC(ctx context.Context, seqno uint32, withStateInit
 		MustStoreUInt(uint64(seqno), 32).
 		MustStoreInt(0, 8)
 
+	intMsgs, err := buildInternalMessageCells(incomeTx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, intMsg := range intMsgs {
+		payload.MustStoreUInt(uint64(tonwallet.PayGasSeparately+tonwallet.IgnoreErrors), 8).MustStoreRef(intMsg)
+	}
+
+	body, err := w.signV4Payload(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return w.buildExternalMessageBOC(body, withStateInit)
+}
+
+func (w *Wallet) BuildSignedBOCV5(ctx context.Context, seqno uint32, withStateInit bool, incomeTx *getgemsapi.Transaction, cfg tonwallet.ConfigV5R1Final) ([]byte, error) {
+	if incomeTx == nil {
+		return nil, errors.New("transaction is nil")
+	}
+	if w == nil || w.instance == nil {
+		return nil, errors.New("wallet instance is not initialized")
+	}
+	if incomeTx.List == nil || len(*incomeTx.List) == 0 {
+		return nil, errors.New("transaction has no messages")
+	}
+	if len(*incomeTx.List) > 255 {
+		return nil, errors.New("for this type of wallet max 255 messages can be sent at the same time")
+	}
+
+	expireAt, err := transactionExpireAt(incomeTx, time.Now())
+	if err != nil {
+		return nil, err
+	}
+
+	intMsgs, err := buildInternalMessageCells(incomeTx)
+	if err != nil {
+		return nil, err
+	}
+
+	actionsList := cell.BeginCell().EndCell()
+	for _, intMsg := range intMsgs {
+		action := cell.BeginCell().
+			MustStoreUInt(0x0ec3c86d, 32).
+			MustStoreUInt(uint64(tonwallet.PayGasSeparately+tonwallet.IgnoreErrors), 8).
+			MustStoreRef(intMsg)
+
+		actionsList = cell.BeginCell().MustStoreRef(actionsList).MustStoreBuilder(action).EndCell()
+	}
+
+	actions := cell.BeginCell().MustStoreUInt(1, 1).MustStoreRef(actionsList).MustStoreUInt(0, 1)
+
+	walletID := tonwallet.V5R1ID{
+		NetworkGlobalID: cfg.NetworkGlobalID,
+		WorkChain:       cfg.Workchain,
+		SubwalletNumber: uint16(w.instance.GetSubwalletID()),
+		WalletVersion:   0,
+	}
+
+	payload := cell.BeginCell().
+		MustStoreUInt(0x7369676e, 32).
+		MustStoreUInt(uint64(walletID.Serialized()), 32).
+		MustStoreUInt(uint64(expireAt), 32).
+		MustStoreUInt(uint64(seqno), 32).
+		MustStoreBuilder(actions)
+
+	privateKey := w.instance.PrivateKey()
+	if privateKey == nil {
+		return nil, errors.New("wallet private key is not set")
+	}
+
+	signature := payload.EndCell().Sign(privateKey)
+	body := cell.BeginCell().MustStoreBuilder(payload).MustStoreSlice(signature, 512).EndCell()
+
+	return w.buildExternalMessageBOC(body, withStateInit)
+}
+
+func buildInternalMessageCells(incomeTx *getgemsapi.Transaction) ([]*cell.Cell, error) {
+	intMsgs := make([]*cell.Cell, 0, len(*incomeTx.List))
 	for i, item := range *incomeTx.List {
 		if item.To == nil || strings.TrimSpace(*item.To) == "" {
 			return nil, fmt.Errorf("message %d has empty destination", i)
@@ -256,9 +336,26 @@ func (w *Wallet) BuildSignedBOC(ctx context.Context, seqno uint32, withStateInit
 			return nil, fmt.Errorf("convert internal message %d to cell: %w", i, err)
 		}
 
-		payload.MustStoreUInt(uint64(tonwallet.PayGasSeparately+tonwallet.IgnoreErrors), 8).MustStoreRef(intMsg)
+		intMsgs = append(intMsgs, intMsg)
 	}
 
+	return intMsgs, nil
+}
+
+func transactionExpireAt(incomeTx *getgemsapi.Transaction, now time.Time) (uint32, error) {
+	var validUntil int64
+	if incomeTx.Timeout != nil && strings.TrimSpace(*incomeTx.Timeout) != "" {
+		parsedValidUntil, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(*incomeTx.Timeout))
+		if err != nil {
+			return 0, fmt.Errorf("parse transaction timeout: %w", err)
+		}
+		validUntil = parsedValidUntil.Unix()
+	}
+
+	return resolveExpireAt(validUntil, now)
+}
+
+func (w *Wallet) signV4Payload(payload *cell.Builder) (*cell.Cell, error) {
 	payloadCell := payload.EndCell()
 
 	privateKey := w.instance.PrivateKey()
@@ -267,11 +364,19 @@ func (w *Wallet) BuildSignedBOC(ctx context.Context, seqno uint32, withStateInit
 	}
 
 	signature := payloadCell.Sign(privateKey)
-	body := cell.BeginCell().MustStoreSlice(signature, 512).MustStoreBuilder(payload).EndCell()
+	return cell.BeginCell().MustStoreSlice(signature, 512).MustStoreBuilder(payload).EndCell(), nil
+}
+
+func (w *Wallet) buildExternalMessageBOC(body *cell.Cell, withStateInit bool) ([]byte, error) {
+	privateKey := w.instance.PrivateKey()
+	if privateKey == nil {
+		return nil, errors.New("wallet private key is not set")
+	}
 
 	var stateInit *tlb.StateInit
 	if withStateInit {
 		publicKey := privateKey.Public().(ed25519.PublicKey)
+		var err error
 		stateInit, err = tonwallet.GetStateInit(publicKey, w.version, w.instance.GetSubwalletID())
 		if err != nil {
 			return nil, fmt.Errorf("build wallet state init: %w", err)
