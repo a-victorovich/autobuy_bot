@@ -12,7 +12,7 @@ const (
 	DefaultGetgemsBaseURL   = "https://api.getgems.io/public-api"
 	DefaultGetgemsWebURL    = "https://getgems.io"
 	DefaultToncenterBaseURL = "https://toncenter.com/api/v2"
-	DefaultTONConfigURL     = "https://ton-blockchain.github.io/global.config.json"
+	DefaultWalletNetwork    = "mainnet"
 )
 
 // Config is the root configuration structure loaded from config.yaml.
@@ -47,8 +47,9 @@ type TelegramConfig struct {
 
 // WalletConfig holds TON wallet credentials.
 type WalletConfig struct {
-	SecretPhrase     string `yaml:"secret_phrase"`
-	NetworkConfigURL string `yaml:"network_config_url"`
+	SecretPhrase string `yaml:"secret_phrase"`
+	Network      string `yaml:"network"`
+	UseV5R1      bool   `yaml:"use_v5r1"`
 }
 
 // ScannerConfig holds polling and behaviour settings.
@@ -86,8 +87,8 @@ func Load(path string) (*Config, error) {
 	if cfg.Toncenter.BaseURL == "" {
 		cfg.Toncenter.BaseURL = DefaultToncenterBaseURL
 	}
-	if cfg.Wallet.NetworkConfigURL == "" {
-		cfg.Wallet.NetworkConfigURL = DefaultTONConfigURL
+	if cfg.Wallet.Network == "" {
+		cfg.Wallet.Network = DefaultWalletNetwork
 	}
 
 	return &cfg, nil
@@ -107,6 +108,9 @@ func (c *Config) validate() error {
 		if err := validateSecretPhrase(c.Wallet.SecretPhrase); err != nil {
 			return fmt.Errorf("wallet.secret_phrase: %w", err)
 		}
+	}
+	if c.Wallet.Network != "" && c.Wallet.Network != "mainnet" && c.Wallet.Network != "testnet" {
+		return fmt.Errorf("wallet.network must be either \"mainnet\" or \"testnet\"")
 	}
 	if len(c.Collections) == 0 && len(c.GiftCollections) == 0 {
 		return fmt.Errorf("at least one of collections or gift_collections must be configured")

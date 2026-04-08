@@ -49,6 +49,8 @@ telegram:
 
 wallet:
   secret_phrase: ""               # Optional for now; 12 or 24 mnemonic words
+  network: "mainnet"              # Optional; "mainnet" by default, or "testnet"
+  use_v5r1: false                 # Optional; false = V4R2, true = V5R1 final
 
 scanner:
   poll_interval_seconds: 30       # How often to scan (default: 30)

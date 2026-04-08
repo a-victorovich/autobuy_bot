@@ -42,8 +42,8 @@ type SendTransactionMessage struct {
 
 // Wallet wraps a TON wallet created from the configured mnemonic.
 type Wallet struct {
-	words            []string
-	networkConfigURL string
+	words   []string
+	version tonwallet.VersionConfig
 
 	mu       sync.Mutex
 	api      tonwallet.TonAPI
@@ -57,15 +57,17 @@ func New(cfg config.WalletConfig) (*Wallet, error) {
 		return nil, err
 	}
 
-	instance, err := tonwallet.FromSeedWithOptions(nil, words, tonwallet.V4R2)
+	version := walletVersionConfig(cfg)
+
+	instance, err := tonwallet.FromSeedWithOptions(nil, words, version)
 	if err != nil {
 		return nil, fmt.Errorf("create TON wallet from seed: %w", err)
 	}
 
 	return &Wallet{
-		words:            append([]string(nil), words...),
-		networkConfigURL: cfg.NetworkConfigURL,
-		instance:         instance,
+		words:    append([]string(nil), words...),
+		version:  version,
+		instance: instance,
 	}, nil
 }
 
@@ -271,4 +273,20 @@ func normalizeSecretPhrase(secretPhrase string) ([]string, error) {
 	}
 
 	return words, nil
+}
+
+func walletVersionConfig(cfg config.WalletConfig) tonwallet.VersionConfig {
+	if !cfg.UseV5R1 {
+		return tonwallet.V4R2
+	}
+
+	//  -239 is mainnet, -3 is testnet
+	networkID := tonwallet.MainnetGlobalID
+	if strings.EqualFold(cfg.Network, "testnet") {
+		networkID = tonwallet.TestnetGlobalID
+	}
+
+	return tonwallet.ConfigV5R1Final{
+		NetworkGlobalID: int32(networkID),
+	}
 }

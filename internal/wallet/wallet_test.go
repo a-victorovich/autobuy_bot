@@ -136,6 +136,28 @@ func TestNewAndGetAddress(t *testing.T) {
 	}
 }
 
+func TestWalletVersionConfigDefaultsToV4R2(t *testing.T) {
+	got := walletVersionConfig(config.WalletConfig{})
+	if got != tonwallet.V4R2 {
+		t.Fatalf("version = %v, want %v", got, tonwallet.V4R2)
+	}
+}
+
+func TestWalletVersionConfigUsesV5R1ForTestnet(t *testing.T) {
+	got := walletVersionConfig(config.WalletConfig{
+		UseV5R1: true,
+		Network: "testnet",
+	})
+
+	cfg, ok := got.(tonwallet.ConfigV5R1Final)
+	if !ok {
+		t.Fatalf("version type = %T, want %T", got, tonwallet.ConfigV5R1Final{})
+	}
+	if cfg.NetworkGlobalID != tonwallet.TestnetGlobalID {
+		t.Fatalf("network id = %d, want %d", cfg.NetworkGlobalID, tonwallet.TestnetGlobalID)
+	}
+}
+
 func TestSignTransaction(t *testing.T) {
 	words := tonwallet.NewSeed()
 	instance, err := tonwallet.FromSeedWithOptions(nil, words, tonwallet.V4R2)
