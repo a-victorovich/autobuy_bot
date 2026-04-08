@@ -105,7 +105,8 @@ func (w *Wallet) BuildSignedBOC(ctx context.Context, seqno uint32, withStateInit
 	payload := cell.BeginCell().
 		MustStoreUInt(uint64(w.instance.GetSubwalletID()), 32).
 		MustStoreUInt(uint64(expireAt), 32).
-		MustStoreUInt(uint64(seqno), 32)
+		MustStoreUInt(uint64(seqno), 32).
+		MustStoreInt(0, 8)
 
 	for i, item := range *incomeTx.List {
 		if item.To == nil || strings.TrimSpace(*item.To) == "" {
