@@ -42,6 +42,7 @@ type Monitor struct {
 	wallet     *wallet.Wallet
 	floorCache map[string]float64
 	mu         sync.RWMutex
+	seqno	   uint32
 }
 
 type historyPage struct {
@@ -71,7 +72,7 @@ func New(cfg *config.Config, api *getgemsapi.ClientWithResponses, notifier *tele
 // Run initialises floor prices and then polls for new listings until ctx is
 // cancelled.
 func (m *Monitor) Run(ctx context.Context) error {
-	if err := m.initWallet(); err != nil {
+	if err := m.initWallet(ctx); err != nil {
 		return err
 	}
 
@@ -150,7 +151,7 @@ func (m *Monitor) Run(ctx context.Context) error {
 	}
 }
 
-func (m *Monitor) initWallet() error {
+func (m *Monitor) initWallet(ctx context.Context) error {
 	if !m.cfg.Scanner.PurchasesEnabled {
 		return nil
 	}
@@ -164,7 +165,32 @@ func (m *Monitor) initWallet() error {
 	}
 
 	m.wallet = w
-	slog.Info("Wallet initialised", "address", w.GetAddress())
+	seqno, accountState, err := m.fetchWalletSeqno(ctx)
+	if err != nil {
+		return fmt.Errorf("Failed get seqno", err)
+	}
+
+	slog.Info("Wallet initialised", "address", w.GetAddress(), "seqno", seqno, "accountState", accountState)
+
+	m.seqno = seqno
+	if (accountState == "uninitialized") {
+		boc, err := w.InitWalletBOC(ctx)
+		if err != nil {
+			return fmt.Errorf("Failed InitWalletBOC", err)
+		}
+
+		res, err := m.toncenter.SendBocPostWithResponse(ctx, toncenterapi.SendBocRequest{
+			Boc: base64.StdEncoding.EncodeToString(boc),
+		})
+		if err != nil {
+			return fmt.Errorf("Failed send result InitWalletBOC", err)
+		}
+		if res.JSON200 == nil || !res.JSON200.Ok {
+			slog.Debug(string(res.Body))
+			return fmt.Errorf("Failed send result InitWalletBOC, not 200")
+		}
+	}
+
 	return nil
 }
 
@@ -411,18 +437,18 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		"buyTx", formatBuyTransactionLog(buyTx),
 	)
 
-	seqno, acctountState, err := m.fetchWalletSeqno(ctx)
-	if err != nil {
-		slog.Error("Failed to fetch wallet seqno",
-			"nft", shorten(event.Address),
-			"saleVersion", saleVersion,
-			"wallet", shorten(m.wallet.GetAddress()),
-			"err", err,
-		)
-		return
-	}
+	// seqno, accountState, err := m.fetchWalletSeqno(ctx)
+	// if err != nil {
+	// 	slog.Error("Failed to fetch wallet seqno",
+	// 		"nft", shorten(event.Address),
+	// 		"saleVersion", saleVersion,
+	// 		"wallet", shorten(m.wallet.GetAddress()),
+	// 		"err", err,
+	// 	)
+	// 	return
+	// }
 
-	signedBOC, err := m.buildSignedTxBoc(ctx, seqno, acctountState == "uninitialized", buyTx)
+	signedBOC, err := m.buildSignedTxBoc(ctx, m.seqno, false, buyTx)
 	if err != nil {
 		slog.Error("Failed buildSignedTxBoc",
 			"nft", shorten(event.Address),
@@ -436,6 +462,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 	sendBocResp, err := m.toncenter.SendBocPostWithResponse(ctx, toncenterapi.SendBocRequest{
 		Boc: base64.StdEncoding.EncodeToString(signedBOC),
 	})
+	m.seqno += 1
 
 	if notifyErr := m.notifier.SendTransactionResult(ctx, event.Address, saleVersion, sendBocResp, err); notifyErr != nil {
 		slog.Error("Failed to send Telegram transaction result",

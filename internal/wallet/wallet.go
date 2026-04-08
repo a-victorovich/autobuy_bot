@@ -48,6 +48,8 @@ type Wallet struct {
 	mu       sync.Mutex
 	api      tonwallet.TonAPI
 	instance *tonwallet.Wallet
+
+	cft config.WalletConfig
 }
 
 // New creates a wallet from config without eagerly connecting to lite servers.
@@ -74,6 +76,91 @@ func New(cfg config.WalletConfig) (*Wallet, error) {
 // GetAddress returns the current wallet address in non-bounceable form.
 func (w *Wallet) GetAddress() string {
 	return w.instance.WalletAddress().String()
+}
+
+func (w *Wallet) InitWalletBOC(ctx context.Context) ([]byte, error) {
+	_ = ctx
+
+	if w == nil || w.instance == nil {
+		return nil, errors.New("wallet instance is not initialized")
+	}
+
+	privateKey := w.instance.PrivateKey()
+	if privateKey == nil {
+		return nil, errors.New("wallet private key is not set")
+	}
+
+	publicKey := privateKey.Public().(ed25519.PublicKey)
+	stateInit, err := tonwallet.GetStateInit(publicKey, w.version, w.instance.GetSubwalletID())
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := w.buildInitBody()
+	if err != nil {
+		return nil, err
+	}
+
+	msgCell, err := tlb.ToCell(&tlb.ExternalMessage{
+		DstAddr:   w.instance.WalletAddress(),
+		StateInit: stateInit,
+		Body:      body,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("serialize external message: %w", err)
+	}
+
+	return msgCell.ToBOC(), nil
+}
+
+func (w *Wallet) buildInitBody() (*cell.Cell, error) {
+	privateKey := w.instance.PrivateKey()
+	if privateKey == nil {
+		return nil, errors.New("wallet private key is not set")
+	}
+
+	expireAt := uint64(time.Now().Add(defaultMessagesTTL).UTC().Unix())
+
+	switch v := w.version.(type) {
+	case tonwallet.ConfigV5R1Final:
+		actions, err := tonwallet.PackV5OutActions([]*tonwallet.Message{})
+		if err != nil {
+			return nil, fmt.Errorf("build empty v5 action list: %w", err)
+		}
+
+		walletID := tonwallet.V5R1ID{
+			NetworkGlobalID: v.NetworkGlobalID,
+			WorkChain:       v.Workchain,
+			SubwalletNumber: uint16(w.instance.GetSubwalletID()),
+			WalletVersion:   0,
+		}
+
+		payload := cell.BeginCell().
+			MustStoreUInt(0x7369676e, 32).
+			MustStoreUInt(uint64(walletID.Serialized()), 32).
+			MustStoreUInt(expireAt, 32).
+			MustStoreUInt(0, 32).
+			MustStoreBuilder(actions)
+
+		signature := payload.EndCell().Sign(privateKey)
+		return cell.BeginCell().
+			MustStoreBuilder(payload).
+			MustStoreSlice(signature, 512).
+			EndCell(), nil
+	default:
+		payload := cell.BeginCell().
+			MustStoreUInt(uint64(w.instance.GetSubwalletID()), 32).
+			MustStoreUInt(expireAt, 32).
+			MustStoreUInt(0, 32).
+			MustStoreInt(0, 8)
+
+		signature := payload.EndCell().Sign(privateKey)
+		return cell.BeginCell().
+			MustStoreSlice(signature, 512).
+			MustStoreBuilder(payload).
+			EndCell(), nil
+	}
 }
 
 func (w *Wallet) BuildSignedBOC(ctx context.Context, seqno uint32, withStateInit bool, incomeTx *getgemsapi.Transaction) ([]byte, error) {
@@ -185,7 +272,7 @@ func (w *Wallet) BuildSignedBOC(ctx context.Context, seqno uint32, withStateInit
 	var stateInit *tlb.StateInit
 	if withStateInit {
 		publicKey := privateKey.Public().(ed25519.PublicKey)
-		stateInit, err = tonwallet.GetStateInit(publicKey, tonwallet.V4R2, w.instance.GetSubwalletID())
+		stateInit, err = tonwallet.GetStateInit(publicKey, w.version, w.instance.GetSubwalletID())
 		if err != nil {
 			return nil, fmt.Errorf("build wallet state init: %w", err)
 		}
