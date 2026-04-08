@@ -6,18 +6,20 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	// "log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/xssnick/tonutils-go/address"
-	"github.com/xssnick/tonutils-go/liteclient"
+	// "github.com/xssnick/tonutils-go/liteclient"
 	"github.com/xssnick/tonutils-go/tlb"
-	"github.com/xssnick/tonutils-go/ton"
+	// "github.com/xssnick/tonutils-go/ton"
 	tonwallet "github.com/xssnick/tonutils-go/ton/wallet"
 	"github.com/xssnick/tonutils-go/tvm/cell"
 
 	"github.com/yourorg/nft-scanner/internal/config"
+	getgemsapi "github.com/yourorg/nft-scanner/internal/getgems/openapi"
 )
 
 const defaultMessagesTTL = 3 * time.Minute
@@ -72,23 +74,50 @@ func (w *Wallet) GetAddress() string {
 	return w.instance.WalletAddress().String()
 }
 
-// SignTransaction signs a TON Connect sendTransaction request and returns the external message BOC.
-func (w *Wallet) SignTransaction(ctx context.Context, seqno uint32, withStateInit bool, req SendTransactionRequest) ([]byte, error) {
-	if len(req.Messages) == 0 {
-		return nil, errors.New("transaction must contain at least one message")
+func (w *Wallet) BuildSignedBOC(ctx context.Context, seqno uint32, withStateInit bool, incomeTx *getgemsapi.Transaction) ([]byte, error) {
+	if incomeTx == nil {
+		return nil, errors.New("transaction is nil")
 	}
-	if len(req.Messages) > 4 {
-		return nil, errors.New("transaction must contain at most 4 messages for V3 wallet")
+	if w == nil || w.instance == nil {
+		return nil, errors.New("wallet instance is not initialized")
 	}
 
-	if req.From != "" {
-		fromAddr, err := address.ParseAddr(req.From)
+	req := SendTransactionRequest{}
+	if incomeTx.Timeout != nil && strings.TrimSpace(*incomeTx.Timeout) != "" {
+		validUntil, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(*incomeTx.Timeout))
 		if err != nil {
-			return nil, fmt.Errorf("parse request from address: %w", err)
+			return nil, fmt.Errorf("parse transaction timeout: %w", err)
 		}
-		if fromAddr.StringRaw() != w.instance.WalletAddress().StringRaw() {
-			return nil, fmt.Errorf("request from address %q does not match wallet address %q", req.From, w.GetAddress())
+		req.ValidUntil = validUntil.Unix()
+	}
+
+	if incomeTx.List != nil {
+		req.Messages = make([]SendTransactionMessage, 0, len(*incomeTx.List))
+		for i, item := range *incomeTx.List {
+			if item.To == nil || strings.TrimSpace(*item.To) == "" {
+				return nil, fmt.Errorf("message %d has empty destination", i)
+			}
+			if item.Amount == nil || strings.TrimSpace(*item.Amount) == "" {
+				return nil, fmt.Errorf("message %d has empty amount", i)
+			}
+
+			msg := SendTransactionMessage{
+				Address: strings.TrimSpace(*item.To),
+				Amount:  strings.TrimSpace(*item.Amount),
+			}
+			if item.Payload != nil {
+				msg.Payload = strings.TrimSpace(*item.Payload)
+			}
+			if item.StateInit != nil {
+				msg.StateInit = strings.TrimSpace(*item.StateInit)
+			}
+
+			req.Messages = append(req.Messages, msg)
 		}
+	}
+
+	if len(req.Messages) == 0 {
+		return nil, errors.New("transaction has no messages")
 	}
 
 	messages, err := buildMessages(req.Messages)
@@ -112,34 +141,6 @@ func (w *Wallet) SignTransaction(ctx context.Context, seqno uint32, withStateIni
 	}
 
 	return msgCell.ToBOC(), nil
-}
-
-func (w *Wallet) ensureAPI(ctx context.Context) (tonwallet.TonAPI, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	if w.api != nil {
-		return w.api, nil
-	}
-
-	if w.networkConfigURL == "" {
-		return nil, errors.New("wallet network_config_url is required to sign transactions")
-	}
-
-	client := liteclient.NewConnectionPool()
-	if err := client.AddConnectionsFromConfigUrl(ctx, w.networkConfigURL); err != nil {
-		return nil, fmt.Errorf("add TON lite servers from config %q: %w", w.networkConfigURL, err)
-	}
-
-	api := ton.NewAPIClient(client).WithRetry()
-	instance, err := tonwallet.FromSeedWithOptions(api, w.words, tonwallet.V4R2)
-	if err != nil {
-		return nil, fmt.Errorf("recreate TON wallet with API: %w", err)
-	}
-
-	w.api = api
-	w.instance = instance
-	return w.api, nil
 }
 
 func (w *Wallet) buildExternalMessage(seqno uint32, expireAt uint32, withStateInit bool, messages []*tonwallet.Message) (*tlb.ExternalMessage, error) {
