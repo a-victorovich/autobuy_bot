@@ -54,8 +54,9 @@ type WalletConfig struct {
 
 // ScannerConfig holds polling and behaviour settings.
 type ScannerConfig struct {
-	PollIntervalSeconds int  `yaml:"poll_interval_seconds"`
-	PurchasesEnabled    bool `yaml:"purchases_enabled"`
+	PollIntervalSeconds int     `yaml:"poll_interval_seconds"`
+	PurchasesEnabled    bool    `yaml:"purchases_enabled"`
+	ResaleDiscountPct   float64 `yaml:"resale_discount_pct"`
 }
 
 // Load reads and parses the YAML config file at the given path.
@@ -77,6 +78,9 @@ func Load(path string) (*Config, error) {
 	// Apply defaults.
 	if cfg.Scanner.PollIntervalSeconds == 0 {
 		cfg.Scanner.PollIntervalSeconds = 30
+	}
+	if cfg.Scanner.ResaleDiscountPct == 0 {
+		cfg.Scanner.ResaleDiscountPct = 2
 	}
 	if cfg.Getgems.BaseURL == "" {
 		cfg.Getgems.BaseURL = DefaultGetgemsBaseURL
@@ -114,6 +118,9 @@ func (c *Config) validate() error {
 	}
 	if len(c.Collections) == 0 && len(c.GiftCollections) == 0 {
 		return fmt.Errorf("at least one of collections or gift_collections must be configured")
+	}
+	if c.Scanner.ResaleDiscountPct < -100 || c.Scanner.ResaleDiscountPct > 100 {
+		return fmt.Errorf("scanner.resale_discount_pct must be between -100 and 100, got %v", c.Scanner.ResaleDiscountPct)
 	}
 	if err := validateCollections("collections", c.Collections); err != nil {
 		return err

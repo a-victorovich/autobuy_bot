@@ -566,7 +566,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 		)
 	}
 
-	newPrice := calculateThreshold(floorPrice, 2)
+	newPrice := calculateThreshold(floorPrice, m.cfg.Scanner.ResaleDiscountPct)
 	saleTx, err := m.createSaleTx(ctx, event.Address, newPrice, getgemsapi.Currency(event.Currency))
 	if err != nil {
 		slog.Error("Failed to create sale transaction",
