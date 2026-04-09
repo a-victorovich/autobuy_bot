@@ -6,18 +6,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	// "log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/xssnick/tonutils-go/address"
-	// "github.com/xssnick/tonutils-go/liteclient"
 	"github.com/xssnick/tonutils-go/tlb"
-	// "github.com/xssnick/tonutils-go/ton"
 	tonwallet "github.com/xssnick/tonutils-go/ton/wallet"
 	"github.com/xssnick/tonutils-go/tvm/cell"
-
 	"github.com/yourorg/nft-scanner/internal/config"
 	getgemsapi "github.com/yourorg/nft-scanner/internal/getgems/openapi"
 )

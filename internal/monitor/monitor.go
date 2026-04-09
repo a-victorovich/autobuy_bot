@@ -165,7 +165,7 @@ func (m *Monitor) initWallet(ctx context.Context) error {
 	}
 
 	m.wallet = w
-	seqno, accountState, err := m.fetchWalletSeqno(ctx)
+	seqno, accountState, balance, err := m.fetchWalletSeqnoAndBalance(ctx)
 	if err != nil {
 		return fmt.Errorf("Failed get seqno", err)
 	}
@@ -174,6 +174,10 @@ func (m *Monitor) initWallet(ctx context.Context) error {
 
 	m.seqno = seqno
 	if (accountState == "uninitialized") {
+		if (balance < 100_000_000) {
+			return fmt.Errorf("Empty wallet. It must have at least 0.1 TON")
+		} 
+
 		boc, err := w.InitWalletBOC(ctx)
 		if err != nil {
 			return fmt.Errorf("Failed InitWalletBOC", err)
@@ -437,17 +441,6 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		"buyTx", formatBuyTransactionLog(buyTx),
 	)
 
-	// seqno, accountState, err := m.fetchWalletSeqno(ctx)
-	// if err != nil {
-	// 	slog.Error("Failed to fetch wallet seqno",
-	// 		"nft", shorten(event.Address),
-	// 		"saleVersion", saleVersion,
-	// 		"wallet", shorten(m.wallet.GetAddress()),
-	// 		"err", err,
-	// 	)
-	// 	return
-	// }
-
 	signedBOC, err := m.buildSignedTxBoc(ctx, m.seqno, false, buyTx)
 	if err != nil {
 		slog.Error("Failed buildSignedTxBoc",
@@ -496,34 +489,38 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 	)
 }
 
-func (m *Monitor) fetchWalletSeqno(ctx context.Context) (uint32, string, error) {
+func (m *Monitor) fetchWalletSeqnoAndBalance(ctx context.Context) (uint32, string, int64, error) {
 	walletAddress := m.wallet.GetAddress()
 
 	walletInfoResp, err := m.toncenter.GetWalletInformationGetWithResponse(ctx, &toncenterapi.GetWalletInformationGetParams{
 		Address: walletAddress,
 	})
 	if err != nil {
-		return 0, "", fmt.Errorf("get wallet information: %w", err)
+		return 0, "", 0, fmt.Errorf("get wallet information: %w", err)
 	}
 	if walletInfoResp.JSON200 == nil || !walletInfoResp.JSON200.Ok {
-		return 0, "", fmt.Errorf("get wallet information: status=%d body=%s", walletInfoResp.StatusCode(), string(walletInfoResp.Body))
+		return 0, "", 0, fmt.Errorf("get wallet information: status=%d body=%s", walletInfoResp.StatusCode(), string(walletInfoResp.Body))
 	}
 
 	walletInfoObj, err := walletInfoResp.JSON200.Result.AsTonlibObject()
 	if err != nil {
-		return 0, "", fmt.Errorf("decode wallet information result: %w", err)
+		return 0, "", 0, fmt.Errorf("decode wallet information result: %w", err)
 	}
 
 	walletInfo, err := walletInfoObj.AsWalletInformation()
 	if err != nil {
-		return 0, "", fmt.Errorf("decode wallet information payload: %w", err)
+		return 0, "", 0, fmt.Errorf("decode wallet information payload: %w", err)
 	}
 
 	if walletInfo.Seqno == nil {
-		return 0, string(walletInfo.AccountState), nil
+		return 0, string(walletInfo.AccountState), 0, nil
 	}
 
-	return uint32(*walletInfo.Seqno), string(walletInfo.AccountState), nil
+	balance, err := strconv.ParseInt(walletInfo.Balance, 10, 64)
+	if err != nil {
+		return 0, "", 0, fmt.Errorf("Failed ParseInt from balance: %w", err)
+	}
+	return uint32(*walletInfo.Seqno), string(walletInfo.AccountState), balance, nil
 }
 
 func (m *Monitor) fetchCollectionFloorPriceNano(ctx context.Context, collectionAddress string) (string, error) {
