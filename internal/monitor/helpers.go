@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/url"
 	"strings"
 
@@ -58,8 +59,9 @@ func discountThreshold(watchedCollections map[string]float64, collectionAddress 
 	return discountPct, watched
 }
 
-func calculateThreshold(floorPrice, discountPct float64) float64 {
-	return floorPrice * (1 - discountPct/100)
+func calculateThreshold(floorPrice int64, discountPct float64) int64 {
+	result := float64(floorPrice) * (1.0 - discountPct/100.0)
+	return int64(math.Ceil(result))
 }
 
 func validateNftSaleDetails(event listingEvent, nft *getgemsapi.V1GetNftByAddressResp) (bool, string) {
@@ -87,7 +89,11 @@ func validateNftSaleDetails(event listingEvent, nft *getgemsapi.V1GetNftByAddres
 	return true, sale.Version
 }
 
-func formatAlert(getgemsWebURL string, event listingEvent, floorPrice, salePrice, actualDiscount, configuredPct float64) string {
+func formatAlert(
+	getgemsWebURL string, event listingEvent,
+	floorPrice, salePrice int64,
+	actualDiscount, configuredPct float64,
+) string {
 	nftURL := fmt.Sprintf(
 		"%s/nft/%s",
 		strings.TrimRight(getgemsWebURL, "/"),
@@ -112,8 +118,8 @@ func formatAlert(getgemsWebURL string, event listingEvent, floorPrice, salePrice
 	)
 }
 
-func tonFromNano(nano float64) float64 {
-	return nano / 1_000_000_000
+func tonFromNano(nano int64) float64 {
+	return float64(nano) / 1_000_000_000
 }
 
 func shorten(s string) string {
@@ -204,14 +210,38 @@ func truncate(s string, n int) string {
 	return s[:n] + "..."
 }
 
-func formatBuyTransactionLog(resp *getgemsapi.V1BuyNftFixPriceResp) string {
-	if resp == nil || resp.JSON200 == nil {
+func formatTransactionLog[T *getgemsapi.V1BuyNftFixPriceResp | *getgemsapi.V1PutUpNftForSaleFixPriceResp](resp T) string {
+	if resp == nil {
 		return ""
 	}
 
-	body, err := json.Marshal(resp.JSON200.Response)
-	if err != nil {
-		return string(resp.Body)
+	var (
+		body     []byte
+		response *getgemsapi.TransactionResponse
+	)
+
+	switch v := any(resp).(type) {
+	case *getgemsapi.V1BuyNftFixPriceResp:
+		body = v.Body
+		response = v.JSON200
+	case *getgemsapi.V1PutUpNftForSaleFixPriceResp:
+		body = v.Body
+		response = v.JSON200
+	default:
+		return ""
 	}
-	return string(body)
+
+	if response == nil {
+		return ""
+	}
+
+	payload, err := json.Marshal(response.Response)
+	if err != nil {
+		return string(body)
+	}
+	return string(payload)
+}
+
+func Ptr[T any](v T) *T {
+	return &v
 }

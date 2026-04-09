@@ -37,7 +37,7 @@ type Monitor struct {
 	notifier   *telegram.Notifier
 	toncenter  *toncenterapi.ClientWithResponses
 	wallet     *wallet.Wallet
-	floorCache map[string]float64
+	floorCache map[string]int64
 	mu         sync.RWMutex
 	seqno      uint32
 }
@@ -62,7 +62,7 @@ func New(cfg *config.Config, api *getgemsapi.ClientWithResponses, notifier *tele
 		api:        api,
 		notifier:   notifier,
 		toncenter:  toncenter.New(cfg.Toncenter.APIKey, cfg.Toncenter.BaseURL),
-		floorCache: make(map[string]float64, cacheSize),
+		floorCache: make(map[string]int64, cacheSize),
 	}
 }
 
@@ -203,7 +203,7 @@ func (m *Monitor) refreshFloorPrices(ctx context.Context) error {
 			continue
 		}
 
-		floorPrice, err := strconv.ParseFloat(floorPriceNano, 64)
+		floorPrice, err := strconv.ParseInt(floorPriceNano, 10, 64)
 		if err != nil {
 			slog.Warn("Failed to parse floor price nano",
 				"collection", addr,
@@ -226,7 +226,7 @@ func (m *Monitor) refreshFloorPrices(ctx context.Context) error {
 	return nil
 }
 
-func (m *Monitor) floorPrice(addr string) (float64, bool) {
+func (m *Monitor) floorPrice(addr string) (int64, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -360,7 +360,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		return
 	}
 
-	price, err := strconv.ParseFloat(event.PriceNano, 64)
+	price, err := strconv.ParseInt(event.PriceNano, 10, 64)
 	if err != nil {
 		slog.Warn("Failed to parse sale price nano",
 			"priceNano", event.PriceNano,
@@ -385,13 +385,13 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		return
 	}
 
-	discount := (1 - price/floorPrice) * 100
+	discount := (1.0 - float64(price)/float64(floorPrice)) * 100.0
 	if err := m.notifyMatchedListing(ctx, event, floorPrice, price, discount, discountPct); err != nil {
 		slog.Error("Failed to send Telegram alert", "err", err)
 		return
 	}
 
-	m.tryPurchaseMatchedListing(ctx, event)
+	m.tryPurchaseMatchedListing(ctx, event, floorPrice)
 }
 
 func (m *Monitor) fetchWalletSeqnoAndBalance(ctx context.Context) (uint32, string, int64, error) {
@@ -490,10 +490,31 @@ func (m *Monitor) createBuyTx(ctx context.Context, nftAddress, version string) (
 	return resp, nil
 }
 
+func (m *Monitor) createSaleTx(ctx context.Context, nftAddress string, newPrice int64, currency getgemsapi.Currency) (*getgemsapi.V1PutUpNftForSaleFixPriceResp, error) {
+	price := strconv.FormatInt(newPrice*100/10, 10)
+	walletAddress := m.wallet.GetAddress()
+
+	resp, err := m.api.V1PutUpNftForSaleFixPriceWithResponse(ctx, nftAddress, getgemsapi.V1PutUpNftForSaleFixPriceJSONRequestBody{
+		OwnerAddress: &walletAddress,
+		FullPrice:    &price,
+		Currency:     &currency,
+		OmitRoyalty:  Ptr(true),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := requireJSON200(resp.StatusCode(), resp.JSON200 != nil, resp.JSON400, resp.Body); err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
 func (m *Monitor) notifyMatchedListing(
 	ctx context.Context,
 	event listingEvent,
-	floorPrice, salePrice, actualDiscount, configuredPct float64,
+	floorPrice, salePrice int64,
+	actualDiscount, configuredPct float64,
 ) error {
 	slog.Info("Signal found",
 		"nft", shorten(event.Address),
@@ -506,7 +527,7 @@ func (m *Monitor) notifyMatchedListing(
 	return m.notifier.SendSignal(ctx, message)
 }
 
-func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEvent) {
+func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEvent, floorPrice int64) {
 	if !m.cfg.Scanner.PurchasesEnabled {
 		slog.Info("Buy flow is disabled; skipping buy transaction creation",
 			"nft", shorten(event.Address),
@@ -532,13 +553,11 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 		)
 		return
 	}
-
 	slog.Info("Created buy transaction",
 		"nft", shorten(event.Address),
 		"saleVersion", saleVersion,
-		"buyTx", formatBuyTransactionLog(buyTx),
+		"buyTx", formatTransactionLog(buyTx),
 	)
-
 	if err := m.sendSignedBuyTransaction(ctx, event, saleVersion, buyTx); err != nil {
 		slog.Error("Failed to send signed buy transaction",
 			"nft", shorten(event.Address),
@@ -546,6 +565,21 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 			"err", err,
 		)
 	}
+
+	newPrice := calculateThreshold(floorPrice, 2)
+	saleTx, err := m.createSaleTx(ctx, event.Address, newPrice, getgemsapi.Currency(event.Currency))
+	if err != nil {
+		slog.Error("Failed to create sale transaction",
+			"nft", shorten(event.Address),
+			"err", err,
+		)
+		return
+	}
+	slog.Info("Created sale transaction",
+		"nft", shorten(event.Address),
+		"saleTx", formatTransactionLog(saleTx),
+	)
+
 }
 
 func (m *Monitor) fetchValidatedSaleVersion(ctx context.Context, event listingEvent) (string, error) {
