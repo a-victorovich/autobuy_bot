@@ -3,12 +3,9 @@ package monitor
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -42,7 +39,7 @@ type Monitor struct {
 	wallet     *wallet.Wallet
 	floorCache map[string]float64
 	mu         sync.RWMutex
-	seqno	   uint32
+	seqno      uint32
 }
 
 type historyPage struct {
@@ -167,27 +164,27 @@ func (m *Monitor) initWallet(ctx context.Context) error {
 	m.wallet = w
 	seqno, accountState, balance, err := m.fetchWalletSeqnoAndBalance(ctx)
 	if err != nil {
-		return fmt.Errorf("Failed get seqno", err)
+		return fmt.Errorf("fetch wallet seqno and balance: %w", err)
 	}
 
 	slog.Info("Wallet initialised", "address", w.GetAddress(), "seqno", seqno, "accountState", accountState)
 
 	m.seqno = seqno
-	if (accountState == "uninitialized") {
-		if (balance < 100_000_000) {
+	if accountState == "uninitialized" {
+		if balance < 100_000_000 {
 			return fmt.Errorf("Empty wallet. It must have at least 0.1 TON")
-		} 
+		}
 
 		boc, err := w.InitWalletBOC(ctx)
 		if err != nil {
-			return fmt.Errorf("Failed InitWalletBOC", err)
+			return fmt.Errorf("initialize wallet boc: %w", err)
 		}
 
 		res, err := m.toncenter.SendBocPostWithResponse(ctx, toncenterapi.SendBocRequest{
 			Boc: base64.StdEncoding.EncodeToString(boc),
 		})
 		if err != nil {
-			return fmt.Errorf("Failed send result InitWalletBOC", err)
+			return fmt.Errorf("send wallet initialization boc: %w", err)
 		}
 		if res.JSON200 == nil || !res.JSON200.Ok {
 			slog.Debug(string(res.Body))
@@ -389,104 +386,12 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 	}
 
 	discount := (1 - price/floorPrice) * 100
-	message := formatAlert(m.cfg.Getgems.WebURL, event, floorPrice, price, discount, discountPct)
-
-	slog.Info("Signal found",
-		"nft", shorten(event.Address),
-		"priceNano", price,
-		"floorPriceNano", floorPrice,
-		"discountPct", fmt.Sprintf("%.2f%%", discount),
-	)
-	if err := m.notifier.SendSignal(ctx, message); err != nil {
+	if err := m.notifyMatchedListing(ctx, event, floorPrice, price, discount, discountPct); err != nil {
 		slog.Error("Failed to send Telegram alert", "err", err)
 		return
 	}
 
-	if !m.cfg.Scanner.PurchasesEnabled {
-		slog.Info("Buy flow is disabled; skipping buy transaction creation",
-			"nft", shorten(event.Address),
-		)
-		return
-	}
-
-	nftResp, err := m.fetchNft(ctx, event.Address)
-	if err != nil {
-		slog.Error("Failed to fetch NFT sale details",
-			"nft", shorten(event.Address),
-			"err", err,
-		)
-		return
-	}
-
-	ok, saleVersion := validateNftSaleDetails(event, nftResp)
-	slog.Info("Validated NFT sale details",
-		"nft", shorten(event.Address),
-		"ok", ok,
-		"saleVersion", saleVersion,
-	)
-
-	buyTx, err := m.createBuyTx(ctx, event.Address, saleVersion)
-	if err != nil {
-		slog.Error("Failed to create buy transaction",
-			"nft", shorten(event.Address),
-			"saleVersion", saleVersion,
-			"err", err,
-		)
-		return
-	}
-
-	slog.Info("Created buy transaction",
-		"nft", shorten(event.Address),
-		"saleVersion", saleVersion,
-		"buyTx", formatBuyTransactionLog(buyTx),
-	)
-
-	signedBOC, err := m.buildSignedTxBoc(ctx, m.seqno, false, buyTx)
-	if err != nil {
-		slog.Error("Failed buildSignedTxBoc",
-			"nft", shorten(event.Address),
-			"err", err,
-		)
-		return
-	}
-	
-	slog.Info("Signed buy transaction was created", "nft", event.Address)
-
-	sendBocResp, err := m.toncenter.SendBocPostWithResponse(ctx, toncenterapi.SendBocRequest{
-		Boc: base64.StdEncoding.EncodeToString(signedBOC),
-	})
-	m.seqno += 1
-
-	if notifyErr := m.notifier.SendTransactionResult(ctx, event.Address, saleVersion, sendBocResp, err); notifyErr != nil {
-		slog.Error("Failed to send Telegram transaction result",
-			"nft", shorten(event.Address),
-			"saleVersion", saleVersion,
-			"err", notifyErr,
-		)
-	}
-
-	if err != nil {
-		slog.Error("Failed to send signed buy transaction",
-			"nft", shorten(event.Address),
-			"saleVersion", saleVersion,
-			"err", err,
-		)
-		return
-	}
-	if sendBocResp.JSON200 == nil || !sendBocResp.JSON200.Ok {
-		slog.Error("Toncenter rejected signed buy transaction",
-			"nft", shorten(event.Address),
-			"saleVersion", saleVersion,
-			"status", sendBocResp.StatusCode(),
-			"body", string(sendBocResp.Body),
-		)
-		return
-	}
-
-	slog.Info("Signed buy transaction was sent",
-		"nft", shorten(event.Address),
-		"saleVersion", saleVersion,
-	)
+	m.tryPurchaseMatchedListing(ctx, event)
 }
 
 func (m *Monitor) fetchWalletSeqnoAndBalance(ctx context.Context) (uint32, string, int64, error) {
@@ -585,6 +490,123 @@ func (m *Monitor) createBuyTx(ctx context.Context, nftAddress, version string) (
 	return resp, nil
 }
 
+func (m *Monitor) notifyMatchedListing(
+	ctx context.Context,
+	event listingEvent,
+	floorPrice, salePrice, actualDiscount, configuredPct float64,
+) error {
+	slog.Info("Signal found",
+		"nft", shorten(event.Address),
+		"priceNano", salePrice,
+		"floorPriceNano", floorPrice,
+		"discountPct", fmt.Sprintf("%.2f%%", actualDiscount),
+	)
+
+	message := formatAlert(m.cfg.Getgems.WebURL, event, floorPrice, salePrice, actualDiscount, configuredPct)
+	return m.notifier.SendSignal(ctx, message)
+}
+
+func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEvent) {
+	if !m.cfg.Scanner.PurchasesEnabled {
+		slog.Info("Buy flow is disabled; skipping buy transaction creation",
+			"nft", shorten(event.Address),
+		)
+		return
+	}
+
+	saleVersion, err := m.fetchValidatedSaleVersion(ctx, event)
+	if err != nil {
+		slog.Error("Failed to validate NFT sale details",
+			"nft", shorten(event.Address),
+			"err", err,
+		)
+		return
+	}
+
+	buyTx, err := m.createBuyTx(ctx, event.Address, saleVersion)
+	if err != nil {
+		slog.Error("Failed to create buy transaction",
+			"nft", shorten(event.Address),
+			"saleVersion", saleVersion,
+			"err", err,
+		)
+		return
+	}
+
+	slog.Info("Created buy transaction",
+		"nft", shorten(event.Address),
+		"saleVersion", saleVersion,
+		"buyTx", formatBuyTransactionLog(buyTx),
+	)
+
+	if err := m.sendSignedBuyTransaction(ctx, event, saleVersion, buyTx); err != nil {
+		slog.Error("Failed to send signed buy transaction",
+			"nft", shorten(event.Address),
+			"saleVersion", saleVersion,
+			"err", err,
+		)
+	}
+}
+
+func (m *Monitor) fetchValidatedSaleVersion(ctx context.Context, event listingEvent) (string, error) {
+	nftResp, err := m.fetchNft(ctx, event.Address)
+	if err != nil {
+		return "", fmt.Errorf("fetch NFT sale details: %w", err)
+	}
+
+	ok, saleVersion := validateNftSaleDetails(event, nftResp)
+	slog.Info("Validated NFT sale details",
+		"nft", shorten(event.Address),
+		"ok", ok,
+		"saleVersion", saleVersion,
+	)
+	if !ok {
+		return "", fmt.Errorf("sale details do not match listing event")
+	}
+
+	return saleVersion, nil
+}
+
+func (m *Monitor) sendSignedBuyTransaction(
+	ctx context.Context,
+	event listingEvent,
+	saleVersion string,
+	buyTx *getgemsapi.V1BuyNftFixPriceResp,
+) error {
+	signedBOC, err := m.buildSignedTxBoc(ctx, m.seqno, false, buyTx)
+	if err != nil {
+		return fmt.Errorf("build signed transaction boc: %w", err)
+	}
+
+	slog.Info("Signed buy transaction was created", "nft", event.Address)
+
+	sendBocResp, err := m.toncenter.SendBocPostWithResponse(ctx, toncenterapi.SendBocRequest{
+		Boc: base64.StdEncoding.EncodeToString(signedBOC),
+	})
+	m.seqno++
+
+	if notifyErr := m.notifier.SendTransactionResult(ctx, event.Address, saleVersion, sendBocResp, err); notifyErr != nil {
+		slog.Error("Failed to send Telegram transaction result",
+			"nft", shorten(event.Address),
+			"saleVersion", saleVersion,
+			"err", notifyErr,
+		)
+	}
+
+	if err != nil {
+		return err
+	}
+	if sendBocResp.JSON200 == nil || !sendBocResp.JSON200.Ok {
+		return fmt.Errorf("toncenter rejected signed buy transaction: status=%d body=%s", sendBocResp.StatusCode(), string(sendBocResp.Body))
+	}
+
+	slog.Info("Signed buy transaction was sent",
+		"nft", shorten(event.Address),
+		"saleVersion", saleVersion,
+	)
+	return nil
+}
+
 func (m *Monitor) hasCollections() bool {
 	return len(m.cfg.Collections) > 0
 }
@@ -620,212 +642,6 @@ func (m *Monitor) watchedCollections() []string {
 	return collections
 }
 
-func decodeListingEvent(item getgemsapi.NftItemHistoryItem) (listingEvent, bool) {
-	typeData, err := item.TypeData.AsHistoryTypePutUpForSale()
-	if err != nil {
-		slog.Debug("Skipping unsupported history type payload",
-			"nft", shorten(item.Address),
-			"collection", shorten(stringValue(item.CollectionAddress)),
-			"err", err,
-		)
-		return listingEvent{}, false
-	}
-
-	return listingEvent{
-		Address:           item.Address,
-		CollectionAddress: stringValue(item.CollectionAddress),
-		PriceNano:         stringValue(typeData.PriceNano),
-		Currency:          stringPtrValue(typeData.Currency),
-	}, true
-}
-
-func nextCursor(current string, page historyPage) string {
-	if page.Cursor != "" {
-		return page.Cursor
-	}
-	if len(page.Items) > 0 {
-		slog.Warn("API returned items without cursor; keeping previous cursor to avoid losing state")
-	}
-	return current
-}
-
-func unwrapHistoryPage(statusCode int, ok *getgemsapi.NftItemHistoryResponse, failed *getgemsapi.FailedResponse, body []byte) (historyPage, error) {
-	if err := requireJSON200(statusCode, ok != nil, failed, body); err != nil {
-		return historyPage{}, err
-	}
-	if ok == nil || !ok.Success {
-		return historyPage{}, fmt.Errorf("empty history response")
-	}
-
-	return historyPage{
-		Items:  ok.Response.Items,
-		Cursor: stringValue(ok.Response.Cursor),
-	}, nil
-}
-
-func discountThreshold(watchedCollections map[string]float64, collectionAddress string) (float64, bool) {
-	discountPct, watched := watchedCollections[collectionAddress]
-	return discountPct, watched
-}
-
-func calculateThreshold(floorPrice, discountPct float64) float64 {
-	return floorPrice * (1 - discountPct/100)
-}
-
-func validateNftSaleDetails(event listingEvent, nft *getgemsapi.V1GetNftByAddressResp) (bool, string) {
-	if nft == nil || nft.JSON200 == nil || !nft.JSON200.Success || nft.JSON200.Response == nil || nft.JSON200.Response.Sale == nil {
-		return false, ""
-	}
-
-	sale, err := nft.JSON200.Response.Sale.AsFixPriceSale()
-	if err != nil {
-		return false, ""
-	}
-	if sale.Type != getgemsapi.FixPriceSaleType("FixPriceSale") {
-		return false, sale.Version
-	}
-	if sale.FullPrice != event.PriceNano {
-		return false, sale.Version
-	}
-	if string(sale.Currency) != event.Currency {
-		return false, sale.Version
-	}
-	if _, ok := allowedKinds[nft.JSON200.Response.Kind]; !ok {
-		return false, sale.Version
-	}
-
-	return true, sale.Version
-}
-
-func formatAlert(getgemsWebURL string, event listingEvent, floorPrice, salePrice, actualDiscount, configuredPct float64) string {
-	nftURL := fmt.Sprintf(
-		"%s/nft/%s",
-		strings.TrimRight(getgemsWebURL, "/"),
-		url.PathEscape(event.Address),
-	)
-
-	return fmt.Sprintf(
-		"🚨 *NFT Deal Alert*\n\n"+
-			"📦 *Collection:* `%s`\n"+
-			"🎯 *NFT:* `%s`\n\n"+
-			"💰 *Sale Price:* `%.2f TON`\n"+
-			"📊 *Floor Price:* `%.2f TON`\n"+
-			"📉 *Discount:* `%.2f%%` _(threshold: %.0f%%)_\n\n"+
-			"🔗 [Open on Getgems](%s)",
-		event.CollectionAddress,
-		event.Address,
-		tonFromNano(salePrice),
-		tonFromNano(floorPrice),
-		actualDiscount,
-		configuredPct,
-		nftURL,
-	)
-}
-
-func tonFromNano(nano float64) float64 {
-	return nano / 1_000_000_000
-}
-
-func shorten(s string) string {
-	if len(s) <= 12 {
-		return s
-	}
-	return s[:6] + "…" + s[len(s)-6:]
-}
-
-func giftHistoryParams(cursor string, reverse bool, limit int) *getgemsapi.V1GetGiftsHistoryParams {
-	params := &getgemsapi.V1GetGiftsHistoryParams{
-		Reverse: &reverse,
-		Types:   &[]getgemsapi.HistoryType{getgemsapi.PutUpForSale},
-	}
-	if cursor != "" {
-		after := getgemsapi.ParametersAfterParameter(cursor)
-		params.After = &after
-	}
-	if limit > 0 {
-		l := getgemsapi.ParametersLimitParameter(limit)
-		params.Limit = &l
-	}
-	return params
-}
-
-func collectionHistoryParams(cursor string, reverse bool, limit int) *getgemsapi.V1GetNftCollectionHistoryParams {
-	params := &getgemsapi.V1GetNftCollectionHistoryParams{
-		Reverse: &reverse,
-		Types:   &[]getgemsapi.HistoryType{getgemsapi.PutUpForSale},
-	}
-	if cursor != "" {
-		after := getgemsapi.ParametersAfterParameter(cursor)
-		params.After = &after
-	}
-	if limit > 0 {
-		l := getgemsapi.ParametersLimitParameter(limit)
-		params.Limit = &l
-	}
-	return params
-}
-
-func requireJSON200(statusCode int, ok bool, failed *getgemsapi.FailedResponse, body []byte) error {
-	if statusCode == 200 && ok {
-		return nil
-	}
-	if failed != nil {
-		return fmt.Errorf("unexpected status %d: %s", statusCode, failureMessage(failed))
-	}
-	return fmt.Errorf("unexpected status %d: %s", statusCode, truncate(string(body), 200))
-}
-
-func failureMessage(failed *getgemsapi.FailedResponse) string {
-	if failed == nil {
-		return ""
-	}
-
-	messages := make([]string, 0, len(failed.Errors))
-	for _, entry := range failed.Errors {
-		if entry.Message != nil && *entry.Message != "" {
-			messages = append(messages, *entry.Message)
-		}
-	}
-	if len(messages) > 0 {
-		return strings.Join(messages, "; ")
-	}
-
-	return failed.Name
-}
-
-func stringValue(v *string) string {
-	if v == nil {
-		return ""
-	}
-	return *v
-}
-
-func stringPtrValue[T ~string](v *T) string {
-	if v == nil {
-		return ""
-	}
-	return string(*v)
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
-}
-
-func formatBuyTransactionLog(resp *getgemsapi.V1BuyNftFixPriceResp) string {
-	if resp == nil || resp.JSON200 == nil {
-		return ""
-	}
-
-	body, err := json.Marshal(resp.JSON200.Response)
-	if err != nil {
-		return string(resp.Body)
-	}
-	return string(body)
-}
-
 func (m *Monitor) buildSignedTxBoc(ctx context.Context, seqno uint32, withStateInit bool, resp *getgemsapi.V1BuyNftFixPriceResp) ([]byte, error) {
 	if resp == nil || resp.JSON200 == nil || resp.JSON200.Response == nil {
 		return nil, fmt.Errorf("empty buy transaction response")
@@ -835,9 +651,9 @@ func (m *Monitor) buildSignedTxBoc(ctx context.Context, seqno uint32, withStateI
 
 	signedBOC, err := m.wallet.BuildSignedBOC(ctx, seqno, withStateInit, tx)
 	if err != nil {
-		slog.Error("Failed to sign buy transaction", err,)
+		slog.Error("Failed to sign buy transaction", "err", err)
 		return nil, err
 	}
-	
+
 	return signedBOC, nil
 }
