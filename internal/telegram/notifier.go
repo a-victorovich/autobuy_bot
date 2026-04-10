@@ -33,9 +33,9 @@ func (n *Notifier) SendSignal(_ context.Context, msg string) error {
 }
 
 // SendTransactionResult sends the result of a signed transaction submit.
-func (n *Notifier) SendTransactionResult(_ context.Context, nftAddress, saleVersion string, resp *toncenterapi.SendBocPostResp, sendErr error) error {
+func (n *Notifier) SendTransactionResult(_ context.Context, nftAddress, saleVersion string, resp *toncenterapi.SendBocReturnHashPostResp, sendErr error) error {
 	var b strings.Builder
-	b.WriteString("Transaction send result\n")
+	b.WriteString("Attempt to buy\n")
 	b.WriteString("NFT: ")
 	b.WriteString(nftAddress)
 	b.WriteString("\nSale version: ")

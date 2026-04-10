@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
 	"encoding/base64"
 	"fmt"
 	"log/slog"
@@ -180,7 +181,7 @@ func (m *Monitor) initWallet(ctx context.Context) error {
 			return fmt.Errorf("initialize wallet boc: %w", err)
 		}
 
-		res, err := m.toncenter.SendBocPostWithResponse(ctx, toncenterapi.SendBocRequest{
+		res, err := m.toncenter.SendBocReturnHashPostWithResponse(ctx, toncenterapi.SendBocRequest{
 			Boc: base64.StdEncoding.EncodeToString(boc),
 		})
 		if err != nil {
@@ -558,7 +559,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 		"saleVersion", saleVersion,
 		"buyTx", formatTransactionLog(buyTx),
 	)
-	if err := m.sendSignedBuyTransaction(ctx, event, saleVersion, buyTx); err != nil {
+	if _, err := m.sendSignedBuyTransaction(ctx, event, saleVersion, buyTx); err != nil {
 		slog.Error("Failed to send signed buy transaction",
 			"nft", shorten(event.Address),
 			"saleVersion", saleVersion,
@@ -606,15 +607,15 @@ func (m *Monitor) sendSignedBuyTransaction(
 	event listingEvent,
 	saleVersion string,
 	buyTx *getgemsapi.V1BuyNftFixPriceResp,
-) error {
+) (string, error) {
 	signedBOC, err := m.buildSignedTxBoc(ctx, m.seqno, false, buyTx)
 	if err != nil {
-		return fmt.Errorf("build signed transaction boc: %w", err)
+		return "", fmt.Errorf("build signed transaction boc: %w", err)
 	}
 
 	slog.Info("Signed buy transaction was created", "nft", event.Address)
 
-	sendBocResp, err := m.toncenter.SendBocPostWithResponse(ctx, toncenterapi.SendBocRequest{
+	sendBocResp, err := m.toncenter.SendBocReturnHashPostWithResponse(ctx, toncenterapi.SendBocRequest{
 		Boc: base64.StdEncoding.EncodeToString(signedBOC),
 	})
 	m.seqno++
@@ -628,17 +629,33 @@ func (m *Monitor) sendSignedBuyTransaction(
 	}
 
 	if err != nil {
-		return err
+		return "", err
 	}
 	if sendBocResp.JSON200 == nil || !sendBocResp.JSON200.Ok {
-		return fmt.Errorf("toncenter rejected signed buy transaction: status=%d body=%s", sendBocResp.StatusCode(), string(sendBocResp.Body))
+		return "", fmt.Errorf("toncenter rejected signed buy transaction: status=%d body=%s", sendBocResp.StatusCode(), string(sendBocResp.Body))
 	}
+
+	resultJSON, err := sendBocResp.JSON200.Result.MarshalJSON()
+	if err != nil {
+		return "", fmt.Errorf("marshal toncenter sendBoc result: %w", err)
+	}
+
+	var msgInfo toncenterapi.ExtMessageInfo
+	if err := json.Unmarshal(resultJSON, &msgInfo); err != nil {
+		return "", fmt.Errorf("decode toncenter sendBoc result: %w", err)
+	}
+	if msgInfo.Hash == "" {
+		return "", fmt.Errorf("toncenter sendBoc result does not contain hash: body=%s", string(sendBocResp.Body))
+	}
+
+	hash := msgInfo.Hash
 
 	slog.Info("Signed buy transaction was sent",
 		"nft", shorten(event.Address),
 		"saleVersion", saleVersion,
+		"Body", string(sendBocResp.Body),
 	)
-	return nil
+	return hash, nil
 }
 
 func (m *Monitor) hasCollections() bool {
