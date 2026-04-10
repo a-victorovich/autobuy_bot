@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"strconv"
 
 	toncenterapi "github.com/yourorg/nft-scanner/internal/toncenter/openapi"
 )
@@ -117,8 +116,7 @@ func formatPutUpForSaleResult(
 	}
 
 	b.WriteString(fmt.Sprintf("*Status* success ✅\n"))
-	b.WriteString("\n*New price*: ")
-	b.WriteString(tonFromNano(newPrice))
+	b.WriteString(fmt.Sprintf("*New price:* `%.2f TON`\n", tonFromNano(newPrice)))
 
 	return b.String()
 }

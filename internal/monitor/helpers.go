@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"math"
 	"strings"
+	"time"
+	"context"
 
 	getgemsapi "github.com/yourorg/nft-scanner/internal/getgems/openapi"
 )
@@ -221,4 +223,54 @@ func derefString(v *string) string {
 		return ""
 	}
 	return *v
+}
+
+func buildCheckTxPayload(buyTx *getgemsapi.V1BuyNftFixPriceResp) (getgemsapi.CheckTxPayload, bool) {
+	if buyTx == nil || buyTx.JSON200 == nil || buyTx.JSON200.Response == nil || buyTx.JSON200.Response.List == nil || len(*buyTx.JSON200.Response.List) == 0 {
+		return getgemsapi.CheckTxPayload{}, false
+	}
+
+	tx := buyTx.JSON200.Response
+	txItem := (*tx.List)[0]
+
+	contextItems := make([]struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}, 0)
+	if txItem.Context != nil {
+		contextItems = make([]struct {
+			Key   string `json:"key"`
+			Value string `json:"value"`
+		}, 0, len(*txItem.Context))
+		for _, item := range *txItem.Context {
+			contextItems = append(contextItems, struct {
+				Key   string `json:"key"`
+				Value string `json:"value"`
+			}{
+				Key:   derefString(item.Key),
+				Value: derefString(item.Value),
+			})
+		}
+	}
+
+	return getgemsapi.CheckTxPayload{
+		Amount:  derefString(txItem.Amount),
+		Check:   derefString(txItem.Check),
+		Context: contextItems,
+		From:    tx.From,
+		To:      derefString(txItem.To),
+		Uuid:    derefString(tx.Uuid),
+	}, true
+}
+
+func waitForRetryDelay(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
