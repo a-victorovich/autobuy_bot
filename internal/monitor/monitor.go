@@ -492,7 +492,7 @@ func (m *Monitor) createBuyTx(ctx context.Context, nftAddress, version string) (
 }
 
 func (m *Monitor) createSaleTx(ctx context.Context, nftAddress string, newPrice int64, currency getgemsapi.Currency) (*getgemsapi.V1PutUpNftForSaleFixPriceResp, error) {
-	price := strconv.FormatInt(newPrice*100/10, 10)
+	price := strconv.FormatInt(newPrice, 10)
 	walletAddress := m.wallet.GetAddress()
 
 	resp, err := m.api.V1PutUpNftForSaleFixPriceWithResponse(ctx, nftAddress, getgemsapi.V1PutUpNftForSaleFixPriceJSONRequestBody{
@@ -640,7 +640,7 @@ func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPr
 			"saleTx", formatTransactionLog(saleTx),
 		)
 
-		if _, err := m.sendSignedTransaction(ctx, event, saleVersion, saleTx.JSON200); err != nil {
+		if _, err := m.sendSignedTransaction(ctx, event, saleVersion, saleTx.JSON200, false); err != nil {
 			lastErr = err
 			slog.Error("Failed to send signed sale transaction",
 				"nft", shorten(event.Address),
@@ -677,7 +677,7 @@ func (m *Monitor) sendSignedBuyTransaction(
 	saleVersion string,
 	buyTx *getgemsapi.V1BuyNftFixPriceResp,
 ) (string, error) {
-	return m.sendSignedTransaction(ctx, event, saleVersion, buyTx.JSON200)
+	return m.sendSignedTransaction(ctx, event, saleVersion, buyTx.JSON200, true)
 }
 
 func (m *Monitor) sendSignedTransaction(
@@ -685,6 +685,7 @@ func (m *Monitor) sendSignedTransaction(
 	event listingEvent,
 	saleVersion string,
 	txResp *getgemsapi.TransactionResponse,
+	notifyTelegram bool,
 ) (string, error) {
 	signedBOC, err := m.buildSignedTxBoc(ctx, m.seqno, false, txResp)
 	if err != nil {
@@ -698,12 +699,14 @@ func (m *Monitor) sendSignedTransaction(
 	})
 	m.seqno++
 
-	if notifyErr := m.notifier.SendTransactionResult(ctx, event.Address, saleVersion, sendBocResp, err); notifyErr != nil {
-		slog.Error("Failed to send Telegram transaction result",
-			"nft", shorten(event.Address),
-			"saleVersion", saleVersion,
-			"err", notifyErr,
-		)
+	if notifyTelegram == true {
+		if notifyErr := m.notifier.SendTransactionResult(ctx, event.Address, saleVersion, sendBocResp, err); notifyErr != nil {
+			slog.Error("Failed to send Telegram transaction result",
+				"nft", shorten(event.Address),
+				"saleVersion", saleVersion,
+				"err", notifyErr,
+			)
+		}
 	}
 
 	if err != nil {
