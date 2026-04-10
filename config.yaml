@@ -10,7 +10,8 @@ wallet:
 scanner:
   poll_interval_seconds: 30
   purchases_enabled: false  # false = only Telegram alerts, true = also create buy transaction data
-  resale_discount_pct: 2    # Optional; sale price for recently bought NFT = floorPrice * (1 - pct/100)
+  resale_discount_pct: 0    # Optional; sale price for recently bought NFT = floorPrice * (1 - pct/100)
+  max_price_ton: 5
 
 getgems:
   api_key: "YOUR_GETGEMS_API_KEY_HERE"

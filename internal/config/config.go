@@ -57,6 +57,7 @@ type ScannerConfig struct {
 	PollIntervalSeconds int     `yaml:"poll_interval_seconds"`
 	PurchasesEnabled    bool    `yaml:"purchases_enabled"`
 	ResaleDiscountPct   float64 `yaml:"resale_discount_pct"`
+	MaxPrice            float64 `yaml:"max_price_ton"`
 }
 
 // Load reads and parses the YAML config file at the given path.

@@ -120,3 +120,18 @@ func formatPutUpForSaleResult(
 
 	return b.String()
 }
+
+func formatMaxPriceIsLower(
+	nftAddress string,
+	maxPrice, price int64,
+) string {
+	return fmt.Sprintf(
+		"🗿 *Max price* is lower than the actual price\n\n"+
+			"*NFT:* `%s`\n"+
+			"*MaxPrice:* `%.2f TON`\n"+
+			"*Price:* `%.2f TON`\n",
+		nftAddress,
+		tonFromNano(maxPrice),
+		tonFromNano(price),
+	)
+}

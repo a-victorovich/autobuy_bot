@@ -94,6 +94,11 @@ func tonFromNano(nano int64) float64 {
 	return float64(nano) / 1_000_000_000
 }
 
+func tonToNano(nano float64) int64 {
+	return int64(math.Ceil(nano * 1_000_000_000))
+}
+
+
 func shorten(s string) string {
 	if len(s) <= 12 {
 		return s

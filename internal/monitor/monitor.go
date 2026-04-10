@@ -537,6 +537,17 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 		return
 	}
 
+	maxPriceConfig := tonToNano(m.cfg.Scanner.MaxPrice)
+	if maxPriceConfig < price {
+		slog.Info("Max price is lower that price; skipping buy transaction creation",
+			"nft", shorten(event.Address),
+		)
+
+		message := formatMaxPriceIsLower(event.Address, maxPriceConfig, price)
+		m.notifier.SendSignal(ctx, message)
+		return
+	}
+
 	saleVersion, err := m.fetchValidatedSaleVersion(ctx, event)
 	if err != nil {
 		slog.Error("Failed to validate NFT sale details",
