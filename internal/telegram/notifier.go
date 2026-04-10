@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strconv"
-	"strings"
-
+	
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	toncenterapi "github.com/yourorg/nft-scanner/internal/toncenter/openapi"
 )
 
 // Notifier sends messages to a Telegram chat via a bot.
@@ -34,66 +31,66 @@ func (n *Notifier) SendSignal(_ context.Context, msg string) error {
 }
 
 // SendTransactionResult sends the result of a signed transaction submit.
-func (n *Notifier) SendTransactionResult(_ context.Context, nftAddress, saleVersion string, resp *toncenterapi.SendBocReturnHashPostResp, sendErr error) error {
-	var b strings.Builder
-	b.WriteString("Attempt to buy\n")
-	b.WriteString("NFT: ")
-	b.WriteString(nftAddress)
-	b.WriteString("\nSale version: ")
-	b.WriteString(saleVersion)
+// func (n *Notifier) SendTransactionResult(_ context.Context, nftAddress, saleVersion string, resp *toncenterapi.SendBocReturnHashPostResp, sendErr error) error {
+// 	var b strings.Builder
+// 	b.WriteString("Attempt to buy\n")
+// 	b.WriteString("NFT: ")
+// 	b.WriteString(nftAddress)
+// 	b.WriteString("\nSale version: ")
+// 	b.WriteString(saleVersion)
 
-	if sendErr != nil {
-		b.WriteString("\nStatus: failed")
-		b.WriteString("\nError: ")
-		b.WriteString(sendErr.Error())
-		return n.send(b.String(), "")
-	}
+// 	if sendErr != nil {
+// 		b.WriteString("\nStatus: failed")
+// 		b.WriteString("\nError: ")
+// 		b.WriteString(sendErr.Error())
+// 		return n.send(b.String(), "")
+// 	}
 
-	if resp == nil {
-		b.WriteString("\nStatus: failed")
-		b.WriteString("\nError: empty response")
-		return n.send(b.String(), "")
-	}
+// 	if resp == nil {
+// 		b.WriteString("\nStatus: failed")
+// 		b.WriteString("\nError: empty response")
+// 		return n.send(b.String(), "")
+// 	}
 
-	if resp.JSON200 == nil || !resp.JSON200.Ok {
-		b.WriteString("\nStatus: rejected")
-		b.WriteString("\nHTTP status: ")
-		b.WriteString(fmt.Sprintf("%d", resp.StatusCode()))
-		if len(resp.Body) > 0 {
-			b.WriteString("\nBody: ")
-			b.WriteString(string(resp.Body))
-		}
-		return n.send(b.String(), "")
-	}
+// 	if resp.JSON200 == nil || !resp.JSON200.Ok {
+// 		b.WriteString("\nStatus: rejected")
+// 		b.WriteString("\nHTTP status: ")
+// 		b.WriteString(fmt.Sprintf("%d", resp.StatusCode()))
+// 		if len(resp.Body) > 0 {
+// 			b.WriteString("\nBody: ")
+// 			b.WriteString(string(resp.Body))
+// 		}
+// 		return n.send(b.String(), "")
+// 	}
 
-	b.WriteString("\nStatus: sent")
-	if result, err := resp.JSON200.Result.AsTonlibResponseResult0(); err == nil && strings.TrimSpace(string(result)) != "" {
-		b.WriteString("\nResult: ")
-		b.WriteString(string(result))
-	}
+// 	b.WriteString("\nStatus: sent")
+// 	if result, err := resp.JSON200.Result.AsTonlibResponseResult0(); err == nil && strings.TrimSpace(string(result)) != "" {
+// 		b.WriteString("\nResult: ")
+// 		b.WriteString(string(result))
+// 	}
 
-	return n.send(b.String(), "")
-}
+// 	return n.send(b.String(), "")
+// }
 
-func (n *Notifier) SendPutUpForSaleResult(_ context.Context, nftAddress string, newPrice int64, resultErr error) error {
-	var b strings.Builder
-	b.WriteString("Put up for sale\n")
-	b.WriteString("NFT: ")
-	b.WriteString(nftAddress)
+// func (n *Notifier) SendPutUpForSaleResult(_ context.Context, nftAddress string, newPrice int64, resultErr error) error {
+// 	var b strings.Builder
+// 	b.WriteString("Put up for sale\n")
+// 	b.WriteString("NFT: ")
+// 	b.WriteString(nftAddress)
 
-	if resultErr != nil {
-		b.WriteString("\nStatus: failed")
-		b.WriteString("\nError: ")
-		b.WriteString(resultErr.Error())
-		return n.send(b.String(), "")
-	}
+// 	if resultErr != nil {
+// 		b.WriteString("\nStatus: failed")
+// 		b.WriteString("\nError: ")
+// 		b.WriteString(resultErr.Error())
+// 		return n.send(b.String(), "")
+// 	}
 
-	b.WriteString("\nStatus: success")
-	b.WriteString("\nNew price: ")
-	b.WriteString(strconv.FormatInt(newPrice, 10))
+// 	b.WriteString("\nStatus: success")
+// 	b.WriteString("\nNew price: ")
+// 	b.WriteString(strconv.FormatInt(newPrice, 10))
 
-	return n.send(b.String(), "")
-}
+// 	return n.send(b.String(), "")
+// }
 
 func (n *Notifier) send(msg, parseMode string) error {
 	mc := tgbotapi.NewMessage(n.chatID, msg)

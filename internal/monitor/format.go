@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"strconv"
+
+	toncenterapi "github.com/yourorg/nft-scanner/internal/toncenter/openapi"
 )
 
 func formatSignalAlert(
@@ -40,7 +43,7 @@ func formatLowBalance (
 	balance, requiredBalance int64, 
 ) string {
 	return fmt.Sprintf(
-		"🚨🚨🚨 *Low Wallet Balance*\n\n"+
+		"🆘 *Low Wallet Balance* 🆘\n\n"+
 			"*WalletAddress:* `%s`\n"+
 			"*Balance:* `%.2f TON`\n"+
 			"*Required balance (for last signal):* `%.2f TON`\n",
@@ -48,4 +51,74 @@ func formatLowBalance (
 		tonFromNano(balance),
 		tonFromNano(requiredBalance),
 	)
+}
+
+func formatTxResult (
+	nftAddress, saleVersion string,
+	resp *toncenterapi.SendBocReturnHashPostResp, sendErr error,
+) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf(
+			"⚠️ *Attempt to buy* ⚠️\n\n"+
+			"*NFT:* `%s`\n"+
+			"*Version:* `%s`\n",
+		nftAddress,
+		saleVersion,
+	))
+	b.WriteString("\n")
+
+	if sendErr != nil {
+		b.WriteString(fmt.Sprintf("*Status* failed ❗️\n"))
+		b.WriteString("\nError: ")
+		b.WriteString(sendErr.Error())
+		return b.String()
+	}
+
+	if resp == nil {
+		b.WriteString(fmt.Sprintf("*Status* failed ❗️\n"))
+		b.WriteString("\nError: empty response")
+		return b.String()
+	}
+
+	if resp.JSON200 == nil || !resp.JSON200.Ok {
+		b.WriteString(fmt.Sprintf("*Status* rejected ❗️\n"))
+		b.WriteString("\nHTTP status: ")
+		b.WriteString(fmt.Sprintf("%d", resp.StatusCode()))
+		if len(resp.Body) > 0 {
+			b.WriteString("\nBody: ")
+			b.WriteString(string(resp.Body))
+		}
+		return b.String()
+	}
+
+	b.WriteString("\nStatus: sent")
+	if result, err := resp.JSON200.Result.AsTonlibResponseResult0(); err == nil && strings.TrimSpace(string(result)) != "" {
+		b.WriteString("\nResult: ")
+		b.WriteString(string(result))
+	}
+
+	return b.String()
+}
+
+func formatPutUpForSaleResult(
+	nftAddress string, newPrice int64, resultErr error,
+) string {
+	var b strings.Builder
+	b.WriteString("Put up for sale\n")
+	b.WriteString("NFT: ")
+	b.WriteString(nftAddress)
+	b.WriteString("\n\n")
+
+	if resultErr != nil {
+		b.WriteString(fmt.Sprintf("*Status* failed ❗️\n"))
+		b.WriteString("\nError: ")
+		b.WriteString(resultErr.Error())
+		return b.String()
+	}
+
+	b.WriteString(fmt.Sprintf("*Status* success ✅\n"))
+	b.WriteString("\nNew price: ")
+	b.WriteString(strconv.FormatInt(newPrice, 10))
+
+	return b.String()
 }

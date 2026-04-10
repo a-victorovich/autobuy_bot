@@ -623,7 +623,9 @@ func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPr
 				"nft", shorten(event.Address),
 				"err", ctx.Err(),
 			)
-			if notifyErr := m.notifier.SendPutUpForSaleResult(ctx, event.Address, newPrice, ctx.Err()); notifyErr != nil {
+
+			message := formatPutUpForSaleResult(event.Address, newPrice, ctx.Err())
+			if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
 				slog.Error("Failed to send Telegram sale result",
 					"nft", shorten(event.Address),
 					"err", notifyErr,
@@ -667,7 +669,8 @@ func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPr
 			lastErr = nil
 		}
 
-		if notifyErr := m.notifier.SendPutUpForSaleResult(ctx, event.Address, newPrice, nil); notifyErr != nil {
+		message := formatPutUpForSaleResult(event.Address, newPrice, nil)
+		if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
 			slog.Error("Failed to send Telegram sale result",
 				"nft", shorten(event.Address),
 				"err", notifyErr,
@@ -680,7 +683,8 @@ func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPr
 		"nft", shorten(event.Address),
 		"attempts", maxAttempts,
 	)
-	if notifyErr := m.notifier.SendPutUpForSaleResult(ctx, event.Address, newPrice, lastErr); notifyErr != nil {
+	message := formatPutUpForSaleResult(event.Address, newPrice, lastErr)
+	if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
 		slog.Error("Failed to send Telegram sale result",
 			"nft", shorten(event.Address),
 			"err", notifyErr,
@@ -717,13 +721,23 @@ func (m *Monitor) sendSignedTransaction(
 	m.seqno++
 
 	if notifyTelegram == true {
-		if notifyErr := m.notifier.SendTransactionResult(ctx, event.Address, saleVersion, sendBocResp, err); notifyErr != nil {
+		message := formatTxResult(event.Address, saleVersion, sendBocResp, err)
+		slog.Info("Message", message)
+		if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
 			slog.Error("Failed to send Telegram transaction result",
 				"nft", shorten(event.Address),
 				"saleVersion", saleVersion,
 				"err", notifyErr,
 			)
 		}
+
+		// if notifyErr := m.notifier.SendTransactionResult(ctx, event.Address, saleVersion, sendBocResp, err); notifyErr != nil {
+		// 	slog.Error("Failed to send Telegram transaction result",
+		// 		"nft", shorten(event.Address),
+		// 		"saleVersion", saleVersion,
+		// 		"err", notifyErr,
+		// 	)
+		// }
 	}
 
 	if err != nil {
