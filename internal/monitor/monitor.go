@@ -166,16 +166,14 @@ func (m *Monitor) initWallet(ctx context.Context) error {
 	}
 
 	m.wallet = w
-	seqno, accountState, balance, err := m.fetchWalletSeqnoAndBalance(ctx)
+	accountState, err := m.updateWalletBalanceAndSeqno(ctx)
 	if err != nil {
-		return fmt.Errorf("fetch wallet seqno and balance: %w", err)
+		return fmt.Errorf("Failed get wallet balance and seqno")
 	}
-	m.balance = balance
-	m.seqno = seqno
 
-	slog.Info("Wallet initialised", "address", w.GetAddress(), "seqno", seqno, "accountState", accountState)
+	slog.Info("Wallet initialised", "address", w.GetAddress(), "seqno", m.seqno, "accountState", accountState)
 	if accountState == "uninitialized" {
-		if balance < 100_000_000 {
+		if m.balance < 100_000_000 {
 			return fmt.Errorf("Empty wallet. It must have at least 0.1 TON")
 		}
 
@@ -582,16 +580,30 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 		)
 	}
 
+	m.balance -= requiredAmount
+
 	newPrice := calculateThreshold(floorPrice, m.cfg.Scanner.ResaleDiscountPct)
 	ready, err := m.waitBuyTransactionReady(ctx, event, saleVersion, buyTx)
 	if err != nil {
 		m.notifyPutUpForSaleResult(ctx, event.Address, newPrice, err)
+		m.updateWalletBalanceAndSeqno(ctx)
 		return
 	}
 	if ready {
 		m.tryPutUpForSale(ctx, event, newPrice)
-		// here update balance
 	}
+
+	m.updateWalletBalanceAndSeqno(ctx)
+}
+
+func (m *Monitor) updateWalletBalanceAndSeqno(ctx context.Context) (string, error) {
+	seqno, accountState, balance, err := m.fetchWalletSeqnoAndBalance(ctx)
+	if err != nil {
+		return "", err
+	}
+	m.balance = balance
+	m.seqno = seqno
+	return accountState, nil;
 }
 
 func (m *Monitor) fetchValidatedSaleVersion(ctx context.Context, event listingEvent) (string, error) {
@@ -681,6 +693,9 @@ func (m *Monitor) waitBuyTransactionReady(
 			return false, err
 		}
 
+		slog.Info(fmt.Sprintf("Attemp #%d to get buy tx status", attempt), "nft", shorten(event.Address))
+
+
 		checkResp, err := m.api.V1CheckTxStatusWithResponse(ctx, payload)
 		if err != nil {
 			slog.Error("Failed to check buy transaction status",
@@ -725,7 +740,7 @@ func (m *Monitor) putUpForSaleAttempt(
 	newPrice int64,
 	attempt int,
 ) error {
-	slog.Info(fmt.Sprintf("Attemp #%d to put up for sale", attempt),
+	slog.Info(fmt.Sprintf("Attempt #%d to put up for sale", attempt),
 		"nft", shorten(event.Address),
 		"priceNano", newPrice,
 	)
@@ -805,14 +820,6 @@ func (m *Monitor) sendSignedTransaction(
 				"err", notifyErr,
 			)
 		}
-
-		// if notifyErr := m.notifier.SendTransactionResult(ctx, event.Address, saleVersion, sendBocResp, err); notifyErr != nil {
-		// 	slog.Error("Failed to send Telegram transaction result",
-		// 		"nft", shorten(event.Address),
-		// 		"saleVersion", saleVersion,
-		// 		"err", notifyErr,
-		// 	)
-		// }
 	}
 
 	if err != nil {

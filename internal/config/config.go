@@ -79,9 +79,6 @@ func Load(path string) (*Config, error) {
 	if cfg.Scanner.PollIntervalSeconds == 0 {
 		cfg.Scanner.PollIntervalSeconds = 30
 	}
-	if cfg.Scanner.ResaleDiscountPct == 0 {
-		cfg.Scanner.ResaleDiscountPct = 2
-	}
 	if cfg.Getgems.BaseURL == "" {
 		cfg.Getgems.BaseURL = DefaultGetgemsBaseURL
 	}
