@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"net/url"
 	"strings"
 
 	getgemsapi "github.com/yourorg/nft-scanner/internal/getgems/openapi"
@@ -87,35 +86,6 @@ func validateNftSaleDetails(event listingEvent, nft *getgemsapi.V1GetNftByAddres
 	}
 
 	return true, sale.Version
-}
-
-func formatAlert(
-	getgemsWebURL string, event listingEvent,
-	floorPrice, salePrice int64,
-	actualDiscount, configuredPct float64,
-) string {
-	nftURL := fmt.Sprintf(
-		"%s/nft/%s",
-		strings.TrimRight(getgemsWebURL, "/"),
-		url.PathEscape(event.Address),
-	)
-
-	return fmt.Sprintf(
-		"🚨 *NFT Deal Alert*\n\n"+
-			"📦 *Collection:* `%s`\n"+
-			"🎯 *NFT:* `%s`\n\n"+
-			"💰 *Sale Price:* `%.2f TON`\n"+
-			"📊 *Floor Price:* `%.2f TON`\n"+
-			"📉 *Discount:* `%.2f%%` _(threshold: %.0f%%)_\n\n"+
-			"🔗 [Open on Getgems](%s)",
-		event.CollectionAddress,
-		event.Address,
-		tonFromNano(salePrice),
-		tonFromNano(floorPrice),
-		actualDiscount,
-		configuredPct,
-		nftURL,
-	)
 }
 
 func tonFromNano(nano int64) float64 {

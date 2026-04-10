@@ -22,6 +22,8 @@ const (
 	initialCursorLimit = 1
 	historyBatchLimit  = 100
 	floorRefreshEvery  = 5 * time.Minute
+
+	minTxPrice = 100_000_000
 )
 
 var allowedKinds = map[getgemsapi.NftItemFullKind]struct{}{
@@ -41,6 +43,7 @@ type Monitor struct {
 	floorCache map[string]int64
 	mu         sync.RWMutex
 	seqno      uint32
+	balance    int64
 }
 
 type historyPage struct {
@@ -167,10 +170,10 @@ func (m *Monitor) initWallet(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("fetch wallet seqno and balance: %w", err)
 	}
+	m.balance = balance
+	m.seqno = seqno
 
 	slog.Info("Wallet initialised", "address", w.GetAddress(), "seqno", seqno, "accountState", accountState)
-
-	m.seqno = seqno
 	if accountState == "uninitialized" {
 		if balance < 100_000_000 {
 			return fmt.Errorf("Empty wallet. It must have at least 0.1 TON")
@@ -392,7 +395,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		return
 	}
 
-	m.tryPurchaseMatchedListing(ctx, event, floorPrice)
+	m.tryPurchaseMatchedListing(ctx, event, floorPrice, price)
 }
 
 func (m *Monitor) fetchWalletSeqnoAndBalance(ctx context.Context) (uint32, string, int64, error) {
@@ -524,11 +527,11 @@ func (m *Monitor) notifyMatchedListing(
 		"discountPct", fmt.Sprintf("%.2f%%", actualDiscount),
 	)
 
-	message := formatAlert(m.cfg.Getgems.WebURL, event, floorPrice, salePrice, actualDiscount, configuredPct)
+	message := formatSignalAlert(m.cfg.Getgems.WebURL, event, floorPrice, salePrice, actualDiscount, configuredPct)
 	return m.notifier.SendSignal(ctx, message)
 }
 
-func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEvent, floorPrice int64) {
+func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEvent, floorPrice int64, price int64) {
 	if !m.cfg.Scanner.PurchasesEnabled {
 		slog.Info("Buy flow is disabled; skipping buy transaction creation",
 			"nft", shorten(event.Address),
@@ -542,6 +545,17 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 			"nft", shorten(event.Address),
 			"err", err,
 		)
+		return
+	}
+
+	requiredAmount := price + minTxPrice 
+	if m.balance < requiredAmount {
+		slog.Error("Wallet balance is too small",
+			"balance", m.balance,
+			"required amount", requiredAmount,
+		)
+		message := formatLowBalance(m.wallet.GetAddress(), m.balance, requiredAmount)
+		m.notifier.SendSignal(ctx, message)
 		return
 	}
 
@@ -569,6 +583,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 	
 	newPrice := calculateThreshold(floorPrice, m.cfg.Scanner.ResaleDiscountPct)
 	m.tryPutUpForSale(ctx, event, newPrice)
+	// here update balance 
 }
 
 func (m *Monitor) fetchValidatedSaleVersion(ctx context.Context, event listingEvent) (string, error) {
@@ -640,14 +655,16 @@ func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPr
 			"saleTx", formatTransactionLog(saleTx),
 		)
 
-		if _, err := m.sendSignedTransaction(ctx, event, saleVersion, saleTx.JSON200, false); err != nil {
+		_, err = m.sendSignedTransaction(ctx, event, saleVersion, saleTx.JSON200, false)
+		if err != nil {
 			lastErr = err
 			slog.Error("Failed to send signed sale transaction",
 				"nft", shorten(event.Address),
 				"attempt", attempt,
 				"err", err,
 			)
-			continue
+		} else { 
+			lastErr = nil
 		}
 
 		if notifyErr := m.notifier.SendPutUpForSaleResult(ctx, event.Address, newPrice, nil); notifyErr != nil {
