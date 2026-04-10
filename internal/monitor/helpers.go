@@ -215,3 +215,10 @@ func formatTransactionLog[T *getgemsapi.V1BuyNftFixPriceResp | *getgemsapi.V1Put
 func Ptr[T any](v T) *T {
 	return &v
 }
+
+func derefString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
+}

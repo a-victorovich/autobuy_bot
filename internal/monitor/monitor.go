@@ -2,8 +2,8 @@ package monitor
 
 import (
 	"context"
-	"encoding/json"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -548,7 +548,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 		return
 	}
 
-	requiredAmount := price + minTxPrice 
+	requiredAmount := price + minTxPrice
 	if m.balance < requiredAmount {
 		slog.Error("Wallet balance is too small",
 			"balance", m.balance,
@@ -573,17 +573,123 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 		"saleVersion", saleVersion,
 		"buyTx", formatTransactionLog(buyTx),
 	)
-	if _, err := m.sendSignedBuyTransaction(ctx, event, saleVersion, buyTx); err != nil {
+	if hash, err := m.sendSignedBuyTransaction(ctx, event, saleVersion, buyTx); err != nil {
 		slog.Error("Failed to send signed buy transaction",
 			"nft", shorten(event.Address),
+			"hash", hash,
 			"saleVersion", saleVersion,
 			"err", err,
 		)
 	}
-	
-	newPrice := calculateThreshold(floorPrice, m.cfg.Scanner.ResaleDiscountPct)
-	m.tryPutUpForSale(ctx, event, newPrice)
-	// here update balance 
+
+	// Check buy tx status
+	if tx := buyTx.JSON200; tx == nil || tx.Response == nil || tx.Response.List == nil || len(*tx.Response.List) == 0 {
+		slog.Warn("Buy transaction is missing data for tx status check",
+			"nft", shorten(event.Address),
+			"saleVersion", saleVersion,
+			"buyTx", formatTransactionLog(buyTx),
+		)
+
+		// maybe send to tg
+	} else {
+		const (
+			maxAttempts = 10
+			retryDelay  = 30 * time.Second
+			saleVersion = "put-up-for-sale"
+		)
+		newPrice := calculateThreshold(floorPrice, m.cfg.Scanner.ResaleDiscountPct)
+
+		txItem := (*tx.Response.List)[0]
+		contextItems := make([]struct {
+			Key   string `json:"key"`
+			Value string `json:"value"`
+		}, 0)
+		if txItem.Context != nil {
+			contextItems = make([]struct {
+				Key   string `json:"key"`
+				Value string `json:"value"`
+			}, 0, len(*txItem.Context))
+			for _, item := range *txItem.Context {
+				var key, value string
+				if item.Key != nil {
+					key = *item.Key
+				}
+				if item.Value != nil {
+					value = *item.Value
+				}
+				contextItems = append(contextItems, struct {
+					Key   string `json:"key"`
+					Value string `json:"value"`
+				}{
+					Key:   key,
+					Value: value,
+				})
+			}
+		}
+
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			timer := time.NewTimer(retryDelay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				slog.Error("Stopped getting info about buy tx (retries)",
+					"nft", shorten(event.Address),
+					"err", ctx.Err(),
+				)
+
+				message := formatPutUpForSaleResult(event.Address, newPrice, ctx.Err())
+				if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
+					slog.Error("Failed to send Telegram sale result",
+						"nft", shorten(event.Address),
+						"err", notifyErr,
+					)
+				}
+				return
+			case <-timer.C:
+			}
+
+			checkResp, err := m.api.V1CheckTxStatusWithResponse(ctx, getgemsapi.CheckTxPayload{
+				Amount:  derefString(txItem.Amount),
+				Check:   derefString(txItem.Check),
+				Context: contextItems,
+				From:    tx.Response.From,
+				To:      derefString(txItem.To),
+				Uuid:    derefString(tx.Response.Uuid),
+			})
+
+			if err != nil {
+				slog.Error("Failed to check buy transaction status",
+					"nft", shorten(event.Address),
+					"saleVersion", saleVersion,
+					"err", err,
+				)
+				continue
+			} else if checkResp.JSON200 != nil {
+				if (checkResp.JSON200.Response.State == "Ready") {
+					// We bought NFT. We can put up it for
+					m.tryPutUpForSale(ctx, event, newPrice)
+
+					// here update balance
+				} else {
+					slog.Info("Checked buy transaction status",
+						"nft", shorten(event.Address),
+						"saleVersion", saleVersion,
+						"status", checkResp.JSON200.Response.State,
+						"extra", checkResp.JSON200.Response.Extra,
+					)
+				}
+			} else {
+				slog.Warn("Buy transaction status check returned non-success response",
+					"nft", shorten(event.Address),
+					"saleVersion", saleVersion,
+					"statusCode", checkResp.StatusCode(),
+					"failed", failureMessage(checkResp.JSON400),
+					"body", string(checkResp.Body),
+				)
+				continue
+			}
+		}
+	}
 }
 
 func (m *Monitor) fetchValidatedSaleVersion(ctx context.Context, event listingEvent) (string, error) {
@@ -607,9 +713,9 @@ func (m *Monitor) fetchValidatedSaleVersion(ctx context.Context, event listingEv
 
 func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPrice int64) {
 	const (
-		maxAttempts  = 10
-		retryDelay   = 30 * time.Second
-		saleVersion  = "put-up-for-sale"
+		maxAttempts = 10
+		retryDelay  = 30 * time.Second
+		saleVersion = "put-up-for-sale"
 	)
 
 	var lastErr error
@@ -654,7 +760,7 @@ func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPr
 		slog.Info("Created sale transaction",
 			"nft", shorten(event.Address),
 			"attempt", attempt,
-			"saleTx", formatTransactionLog(saleTx),
+			// "saleTx", formatTransactionLog(saleTx), // too long tx
 		)
 
 		_, err = m.sendSignedTransaction(ctx, event, saleVersion, saleTx.JSON200, false)
@@ -665,7 +771,7 @@ func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPr
 				"attempt", attempt,
 				"err", err,
 			)
-		} else { 
+		} else {
 			lastErr = nil
 		}
 
@@ -722,7 +828,7 @@ func (m *Monitor) sendSignedTransaction(
 
 	if notifyTelegram == true {
 		message := formatTxResult(event.Address, saleVersion, sendBocResp, err)
-		slog.Info("Message", message)
+		// slog.Info("Message", message)
 		if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
 			slog.Error("Failed to send Telegram transaction result",
 				"nft", shorten(event.Address),

@@ -104,8 +104,8 @@ func formatPutUpForSaleResult(
 	nftAddress string, newPrice int64, resultErr error,
 ) string {
 	var b strings.Builder
-	b.WriteString("Put up for sale\n")
-	b.WriteString("NFT: ")
+	b.WriteString(fmt.Sprintf("💲*Put up for sale*\n"))
+	b.WriteString("*NFT*: ")
 	b.WriteString(nftAddress)
 	b.WriteString("\n\n")
 
@@ -117,8 +117,8 @@ func formatPutUpForSaleResult(
 	}
 
 	b.WriteString(fmt.Sprintf("*Status* success ✅\n"))
-	b.WriteString("\nNew price: ")
-	b.WriteString(strconv.FormatInt(newPrice, 10))
+	b.WriteString("\n*New price*: ")
+	b.WriteString(tonFromNano(newPrice))
 
 	return b.String()
 }
