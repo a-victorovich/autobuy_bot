@@ -600,24 +600,22 @@ func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPr
 	var lastErr error
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		if attempt > 1 {
-			timer := time.NewTimer(retryDelay)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				slog.Error("Stopped put up for sale retries",
+		timer := time.NewTimer(retryDelay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			slog.Error("Stopped put up for sale retries",
+				"nft", shorten(event.Address),
+				"err", ctx.Err(),
+			)
+			if notifyErr := m.notifier.SendPutUpForSaleResult(ctx, event.Address, newPrice, ctx.Err()); notifyErr != nil {
+				slog.Error("Failed to send Telegram sale result",
 					"nft", shorten(event.Address),
-					"err", ctx.Err(),
+					"err", notifyErr,
 				)
-				if notifyErr := m.notifier.SendPutUpForSaleResult(ctx, event.Address, newPrice, ctx.Err()); notifyErr != nil {
-					slog.Error("Failed to send Telegram sale result",
-						"nft", shorten(event.Address),
-						"err", notifyErr,
-					)
-				}
-				return
-			case <-timer.C:
 			}
+			return
+		case <-timer.C:
 		}
 
 		slog.Info(fmt.Sprintf("Attemp #%d to put up for sale", attempt),
