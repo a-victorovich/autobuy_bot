@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -70,6 +71,26 @@ func (n *Notifier) SendTransactionResult(_ context.Context, nftAddress, saleVers
 		b.WriteString("\nResult: ")
 		b.WriteString(string(result))
 	}
+
+	return n.send(b.String(), "")
+}
+
+func (n *Notifier) SendPutUpForSaleResult(_ context.Context, nftAddress string, newPrice int64, resultErr error) error {
+	var b strings.Builder
+	b.WriteString("Put up for sale\n")
+	b.WriteString("NFT: ")
+	b.WriteString(nftAddress)
+
+	if resultErr != nil {
+		b.WriteString("\nStatus: failed")
+		b.WriteString("\nError: ")
+		b.WriteString(resultErr.Error())
+		return n.send(b.String(), "")
+	}
+
+	b.WriteString("\nStatus: success")
+	b.WriteString("\nNew price: ")
+	b.WriteString(strconv.FormatInt(newPrice, 10))
 
 	return n.send(b.String(), "")
 }
