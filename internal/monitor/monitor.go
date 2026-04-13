@@ -492,15 +492,16 @@ func (m *Monitor) createBuyTx(ctx context.Context, nftAddress, version string) (
 	return resp, nil
 }
 
-func (m *Monitor) createSaleTx(ctx context.Context, nftAddress string, newPrice int64, currency getgemsapi.Currency) (*getgemsapi.V1PutUpNftForSaleFixPriceResp, error) {
+func (m *Monitor) createSaleTx(ctx context.Context, nftAddress, collectionAddress string, newPrice int64, currency getgemsapi.Currency) (*getgemsapi.V1PutUpNftForSaleFixPriceResp, error) {
 	price := strconv.FormatInt(newPrice, 10)
 	walletAddress := m.wallet.GetAddress()
+	omitRoyalty := !m.hasRoyaltyCollection(collectionAddress)
 
 	resp, err := m.api.V1PutUpNftForSaleFixPriceWithResponse(ctx, nftAddress, getgemsapi.V1PutUpNftForSaleFixPriceJSONRequestBody{
 		OwnerAddress: &walletAddress,
 		FullPrice:    &price,
 		Currency:     &currency,
-		OmitRoyalty:  Ptr(false),
+		OmitRoyalty:  Ptr(omitRoyalty),
 	})
 	if err != nil {
 		return nil, err
@@ -614,7 +615,7 @@ func (m *Monitor) updateWalletBalanceAndSeqno(ctx context.Context) (string, erro
 	}
 	m.balance = balance
 	m.seqno = seqno
-	return accountState, nil;
+	return accountState, nil
 }
 
 func (m *Monitor) fetchValidatedSaleVersion(ctx context.Context, event listingEvent) (string, error) {
@@ -706,7 +707,6 @@ func (m *Monitor) waitBuyTransactionReady(
 
 		slog.Info(fmt.Sprintf("Attemp #%d to get buy tx status", attempt), "nft", shorten(event.Address))
 
-
 		checkResp, err := m.api.V1CheckTxStatusWithResponse(ctx, payload)
 		if err != nil {
 			slog.Error("Failed to check buy transaction status",
@@ -756,7 +756,7 @@ func (m *Monitor) putUpForSaleAttempt(
 		"priceNano", newPrice,
 	)
 
-	saleTx, err := m.createSaleTx(ctx, event.Address, newPrice, getgemsapi.Currency(event.Currency))
+	saleTx, err := m.createSaleTx(ctx, event.Address, event.CollectionAddress, newPrice, getgemsapi.Currency(event.Currency))
 	if err != nil {
 		slog.Error("Failed to create sale transaction",
 			"nft", shorten(event.Address),
@@ -874,6 +874,15 @@ func (m *Monitor) hasGiftCollections() bool {
 func (m *Monitor) isWatchedGiftCollection(collectionAddress string) bool {
 	_, watched := discountThreshold(m.cfg.GiftCollections, collectionAddress)
 	return watched
+}
+
+func (m *Monitor) hasRoyaltyCollection(collectionAddress string) bool {
+	for _, addr := range m.cfg.RoyaltyCollections {
+		if addr == collectionAddress {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Monitor) watchedCollections() []string {
