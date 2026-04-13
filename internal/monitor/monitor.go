@@ -736,6 +736,10 @@ func (m *Monitor) waitBuyTransactionReady(
 			if checkResp.JSON200.Response.State == "Ready" {
 				return true, nil
 			}
+
+			if checkResp.JSON200.Response.State == "Failed" {
+				return false, fmt.Errorf("buy transaction failed")
+			}
 			continue
 		}
 
