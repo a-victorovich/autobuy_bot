@@ -151,3 +151,8 @@ Run the generator below to download the latest TON Center OpenAPI document from 
 ```bash
 make generate-toncenter-openapi
 ```
+
+## Prepare config for gifs collections
+```
+make generate-gifts-config ARGS="-percent 10 -api-key "
+```

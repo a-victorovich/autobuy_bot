@@ -1,4 +1,4 @@
-.PHONY: run build tidy lint generate-getgems-openapi generate-toncenter-openapi
+.PHONY: run build tidy lint generate-getgems-openapi generate-toncenter-openapi generate-gifts-config
 
 ## run: run the scanner with default config
 run:
@@ -24,3 +24,7 @@ generate-getgems-openapi:
 ## generate-toncenter-openapi: generate TON Center OpenAPI client/models
 generate-toncenter-openapi:
 	go run ./cmd/toncenter-openapi-gen
+
+## generate-gifts-config: print gift collections as YAML block (pass extra flags via ARGS)
+generate-gifts-config:
+	go run ./cmd/generate-gifts-config $(ARGS)
