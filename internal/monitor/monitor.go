@@ -419,14 +419,15 @@ func (m *Monitor) fetchWalletSeqnoAndBalance(ctx context.Context) (uint32, strin
 		return 0, "", 0, fmt.Errorf("decode wallet information payload: %w", err)
 	}
 
-	if walletInfo.Seqno == nil {
-		return 0, string(walletInfo.AccountState), 0, nil
-	}
-
 	balance, err := strconv.ParseInt(walletInfo.Balance, 10, 64)
 	if err != nil {
 		return 0, "", 0, fmt.Errorf("Failed ParseInt from balance: %w", err)
 	}
+
+	if walletInfo.Seqno == nil {
+		return 0, string(walletInfo.AccountState), balance, nil
+	}
+
 	return uint32(*walletInfo.Seqno), string(walletInfo.AccountState), balance, nil
 }
 
@@ -613,6 +614,13 @@ func (m *Monitor) updateWalletBalanceAndSeqno(ctx context.Context) (string, erro
 	if err != nil {
 		return "", err
 	}
+
+	slog.Info("BALANCE",
+		"seqno", seqno,
+		"accountState", accountState,
+		"balance", balance,
+	)
+
 	m.balance = balance
 	m.seqno = seqno
 	return accountState, nil
