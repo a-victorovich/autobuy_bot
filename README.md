@@ -91,13 +91,20 @@ Description=NFT Scanner
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/scanner -config /etc/nft-scanner/config.yaml
+ExecStart=/root/autobuy_bot/bin/scanner -config /root/autobuy_bot/config.mainnet.yaml -log-level=debug
 Restart=on-failure
 RestartSec=10s
 
 [Install]
 WantedBy=multi-user.target
 ```
+sudo systemctl daemon-reload
+sudo systemctl start nft-scanner.service
+sudo systemctl enable nft-scanner.service
+
+sudo systemctl status nft-scanner.service
+
+journalctl -u nft-scanner.service -f
 
 ## Project structure
 
