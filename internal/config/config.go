@@ -2,7 +2,9 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -121,6 +123,26 @@ func (c *Config) validate() error {
 	if c.Scanner.ResaleDiscountPct < -100 || c.Scanner.ResaleDiscountPct > 100 {
 		return fmt.Errorf("scanner.resale_discount_pct must be between -100 and 100, got %v", c.Scanner.ResaleDiscountPct)
 	}
+
+	if allValue, hasAll := c.GiftCollections["all"]; hasAll {
+		allGiftCollections, err := loadGiftCollectionsFromYAML("gift_collections.yaml")
+		if err != nil {
+			return fmt.Errorf("expanding gift_collections all: %w", err)
+		}
+		for collectionAddress := range allGiftCollections {
+			if collectionAddress == "all" {
+				continue
+			}
+			if _, exists := c.GiftCollections[collectionAddress]; exists {
+				continue
+			}
+			c.GiftCollections[collectionAddress] = allValue
+		}
+		delete(c.GiftCollections, "all")
+
+		logConfiguredCollections("gift_collections", c.GiftCollections)
+	}
+
 	if err := validateCollections("collections", c.Collections); err != nil {
 		return err
 	}
@@ -130,6 +152,7 @@ func (c *Config) validate() error {
 	if err := validateCollectionList("royalty_collections", c.RoyaltyCollections); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -164,4 +187,43 @@ func validateSecretPhrase(phrase string) error {
 
 func splitSecretPhrase(phrase string) []string {
 	return strings.Fields(phrase)
+}
+
+func loadGiftCollectionsFromYAML(path string) (map[string]float64, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading %q: %w", path, err)
+	}
+
+	var cfg struct {
+		GiftCollections map[string]float64 `yaml:"gift_collections"`
+	}
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parsing %q: %w", path, err)
+	}
+
+	if cfg.GiftCollections == nil {
+		cfg.GiftCollections = make(map[string]float64)
+	}
+	return cfg.GiftCollections, nil
+}
+
+func logConfiguredCollections(field string, collections map[string]float64) {
+	if len(collections) == 0 {
+		return
+	}
+
+	keys := make([]string, 0, len(collections))
+	for collectionAddress := range collections {
+		keys = append(keys, collectionAddress)
+	}
+	sort.Strings(keys)
+
+	for _, collectionAddress := range keys {
+		slog.Info("Configured collection discount",
+			"field", field,
+			"collection", collectionAddress,
+			"percent", collections[collectionAddress],
+		)
+	}
 }
