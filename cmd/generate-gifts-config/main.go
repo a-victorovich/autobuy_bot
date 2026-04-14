@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -17,6 +18,7 @@ func main() {
 	baseURL := flag.String("base-url", config.DefaultGetgemsBaseURL, "Getgems base URL")
 	apiKey := flag.String("api-key", "", "optional Getgems API key")
 	percent := flag.Float64("percent", 10, "discount percent for each collection")
+	outputPath := flag.String("output", "gift_collections.yaml", "output file for generated gift_collections YAML block")
 	flag.Parse()
 
 	if *percent < -100 || *percent > 100 {
@@ -32,9 +34,14 @@ func main() {
 
 	sort.Strings(addresses)
 
-	fmt.Println("gift_collections:")
+	var out bytes.Buffer
+	out.WriteString("gift_collections:\n")
 	for _, addr := range addresses {
-		fmt.Printf("  %q: %s\n", addr, formatPercent(*percent))
+		_, _ = fmt.Fprintf(&out, "  %q: %s\n", addr, formatPercent(*percent))
+	}
+
+	if err := os.WriteFile(*outputPath, out.Bytes(), 0o644); err != nil {
+		exitf("write output file %q: %v", *outputPath, err)
 	}
 }
 
