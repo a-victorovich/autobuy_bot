@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -75,7 +76,7 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
 
-	if err := cfg.validate(); err != nil {
+	if err := cfg.validate(path); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
@@ -99,7 +100,7 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-func (c *Config) validate() error {
+func (c *Config) validate(configPath string) error {
 	if c.Getgems.APIKey == "" {
 		return fmt.Errorf("getgems.api_key is required")
 	}
@@ -125,7 +126,12 @@ func (c *Config) validate() error {
 	}
 
 	if allValue, hasAll := c.GiftCollections["all"]; hasAll {
-		allGiftCollections, err := loadGiftCollectionsFromYAML("gift_collections.yaml")
+		allGiftCollectionsPath, err := resolveGiftCollectionsPath(configPath)
+		if err != nil {
+			return fmt.Errorf("resolving gift_collections.yaml: %w", err)
+		}
+
+		allGiftCollections, err := loadGiftCollectionsFromYAML(allGiftCollectionsPath)
 		if err != nil {
 			return fmt.Errorf("expanding gift_collections all: %w", err)
 		}
@@ -187,6 +193,28 @@ func validateSecretPhrase(phrase string) error {
 
 func splitSecretPhrase(phrase string) []string {
 	return strings.Fields(phrase)
+}
+
+func resolveGiftCollectionsPath(configPath string) (string, error) {
+	candidates := make([]string, 0, 3)
+	if configPath != "" {
+		candidates = append(candidates, filepath.Join(filepath.Dir(configPath), "gift_collections.yaml"))
+	}
+
+	exePath, err := os.Executable()
+	if err == nil && exePath != "" {
+		candidates = append(candidates, filepath.Join(filepath.Dir(exePath), "gift_collections.yaml"))
+	}
+
+	candidates = append(candidates, "gift_collections.yaml")
+
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+
+	return "", os.ErrNotExist
 }
 
 func loadGiftCollectionsFromYAML(path string) (map[string]float64, error) {
