@@ -135,3 +135,11 @@ func formatMaxPriceIsLower(
 		tonFromNano(price),
 	)
 }
+
+func formatSuccessfullyBought(nftAddress string) string {
+	return fmt.Sprintf(
+		"🛍 *Successfully* bought\n\n"+
+			"*NFT:* `%s`\n"+
+		nftAddress,
+	)
+}

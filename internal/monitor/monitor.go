@@ -603,7 +603,15 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 		return
 	}
 	if ready {
-		m.tryPutUpForSale(ctx, event, newPrice)
+		message := formatSuccessfullyBought(event.Address)
+		if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
+			slog.Error("Failed to send Telegram bought message",
+				"nft", shorten(event.Address),
+				"err", notifyErr,
+			)
+		}
+
+		// m.tryPutUpForSale(ctx, event, newPrice)
 	}
 
 	m.updateWalletBalanceAndSeqno(ctx)
