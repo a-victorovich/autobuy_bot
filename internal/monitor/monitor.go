@@ -540,7 +540,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 	}
 
 	maxPriceConfig := tonToNano(m.cfg.Scanner.MaxPrice)
-	if maxPriceConfig < price {
+	if maxPriceConfig > 0 && maxPriceConfig < price {
 		slog.Info("Max price is lower that price; skipping buy transaction creation",
 			"nft", shorten(event.Address),
 		)
