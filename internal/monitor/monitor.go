@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -42,6 +43,7 @@ type Monitor struct {
 	wallet     *wallet.Wallet
 	floorCache map[string]int64
 	mu         sync.RWMutex
+	walletMu   sync.Mutex
 	seqno      uint32
 	balance    int64
 }
@@ -298,6 +300,7 @@ func (m *Monitor) scanGiftHistoryBatch(ctx context.Context, cursor string) (stri
 		"after", cursor,
 	)
 
+	itemsToProcess := make([]getgemsapi.NftItemHistoryItem, 0, len(page.Items))
 	for _, item := range page.Items {
 		collectionAddress := stringValue(item.CollectionAddress)
 		if !m.isWatchedGiftCollection(collectionAddress) {
@@ -308,8 +311,9 @@ func (m *Monitor) scanGiftHistoryBatch(ctx context.Context, cursor string) (stri
 			continue
 		}
 
-		m.processItem(ctx, item, m.cfg.GiftCollections)
+		itemsToProcess = append(itemsToProcess, item)
 	}
+	m.processItemsWithWorkerPool(ctx, itemsToProcess, m.cfg.GiftCollections)
 
 	return nextCursor(cursor, page), len(page.Items) == historyBatchLimit, nil
 }
@@ -327,11 +331,53 @@ func (m *Monitor) scanNftHistoryBatch(ctx context.Context, collectionAddress, cu
 		"after", cursor,
 	)
 
-	for _, item := range page.Items {
-		m.processItem(ctx, item, m.cfg.Collections)
-	}
+	m.processItemsWithWorkerPool(ctx, page.Items, m.cfg.Collections)
 
 	return nextCursor(cursor, page), len(page.Items) == historyBatchLimit, nil
+}
+
+func (m *Monitor) processItemsWithWorkerPool(
+	ctx context.Context,
+	items []getgemsapi.NftItemHistoryItem,
+	watchedCollections map[string]float64,
+) {
+	if len(items) == 0 {
+		return
+	}
+
+	workers := runtime.GOMAXPROCS(0) * 2
+	if workers < 1 {
+		workers = 1
+	}
+	if workers > len(items) {
+		workers = len(items)
+	}
+
+	jobs := make(chan getgemsapi.NftItemHistoryItem, workers)
+	var wg sync.WaitGroup
+	wg.Add(workers)
+
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			for item := range jobs {
+				m.processItem(ctx, item, watchedCollections)
+			}
+		}()
+	}
+
+	for _, item := range items {
+		select {
+		case <-ctx.Done():
+			close(jobs)
+			wg.Wait()
+			return
+		case jobs <- item:
+		}
+	}
+
+	close(jobs)
+	wg.Wait()
 }
 
 func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistoryItem, watchedCollections map[string]float64) {
@@ -618,6 +664,9 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 }
 
 func (m *Monitor) updateWalletBalanceAndSeqno(ctx context.Context) (string, error) {
+	m.walletMu.Lock()
+	defer m.walletMu.Unlock()
+	
 	seqno, accountState, balance, err := m.fetchWalletSeqnoAndBalance(ctx)
 	if err != nil {
 		return "", err
