@@ -66,29 +66,29 @@ func calculateThreshold(floorPrice int64, discountPct float64) int64 {
 	return int64(math.Ceil(result))
 }
 
-func validateNftSaleDetails(event listingEvent, nft *getgemsapi.V1GetNftByAddressResp) (bool, string) {
+func validateNftSaleDetails(event listingEvent, nft *getgemsapi.V1GetNftByAddressResp) (bool, string, string) {
 	if nft == nil || nft.JSON200 == nil || !nft.JSON200.Success || nft.JSON200.Response == nil || nft.JSON200.Response.Sale == nil {
-		return false, ""
+		return false, "", "Response code is not 200"
 	}
 
 	sale, err := nft.JSON200.Response.Sale.AsFixPriceSale()
 	if err != nil {
-		return false, ""
+		return false, "", "Response has no Sale field"
 	}
 	if sale.Type != getgemsapi.FixPriceSaleType("FixPriceSale") {
-		return false, sale.Version
+		return false, sale.Version, fmt.Sprintf("Type is not FixPriceSale: %v", sale.Type)
 	}
 	if sale.FullPrice != event.PriceNano {
-		return false, sale.Version
+		return false, sale.Version, fmt.Sprintf("Prices mismatch: %v", sale.FullPrice)
 	}
 	if string(sale.Currency) != event.Currency {
-		return false, sale.Version
+		return false, sale.Version, fmt.Sprintf("Currency mismatch: %v", sale.Currency)
 	}
 	if _, ok := allowedKinds[nft.JSON200.Response.Kind]; !ok {
-		return false, sale.Version
+		return false, sale.Version, fmt.Sprintf("Invalid type: %v", nft.JSON200.Response.Kind)
 	}
 
-	return true, sale.Version
+	return true, sale.Version, ""
 }
 
 func tonFromNano(nano int64) float64 {
