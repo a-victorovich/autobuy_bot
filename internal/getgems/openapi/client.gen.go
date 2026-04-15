@@ -241,18 +241,21 @@ type AddCNFTToCollectionResponse struct {
 
 // Auction defines model for Auction.
 type Auction struct {
-	ContractAddress       *string             `json:"contractAddress"`
-	ContractType          AuctionContractType `json:"contractType"`
-	Currency              Currency            `json:"currency"`
-	FinishAt              time.Time           `json:"finishAt"`
-	LastBidAddress        *string             `json:"lastBidAddress"`
-	LastBidAmount         *string             `json:"lastBidAmount"`
-	LastBidAt             *time.Time          `json:"lastBidAt"`
-	MarketplaceFee        string              `json:"marketplaceFee"`
-	MarketplaceFeeAddress string              `json:"marketplaceFeeAddress"`
-	MaxBid                *string             `json:"maxBid"`
-	MinBid                string              `json:"minBid"`
-	RoyaltyAddress        string              `json:"royaltyAddress"`
+	ContractAddress *string             `json:"contractAddress"`
+	ContractType    AuctionContractType `json:"contractType"`
+	Currency        Currency            `json:"currency"`
+	FinishAt        time.Time           `json:"finishAt"`
+	LastBidAddress  *string             `json:"lastBidAddress"`
+	LastBidAmount   *string             `json:"lastBidAmount"`
+	LastBidAt       *time.Time          `json:"lastBidAt"`
+
+	// MarketplaceFee For Auctions use marketplaceFeePercent
+	MarketplaceFee        string  `json:"marketplaceFee"`
+	MarketplaceFeeAddress string  `json:"marketplaceFeeAddress"`
+	MarketplaceFeePercent float32 `json:"marketplaceFeePercent"`
+	MaxBid                *string `json:"maxBid"`
+	MinBid                string  `json:"minBid"`
+	RoyaltyAddress        string  `json:"royaltyAddress"`
 	RoyaltyPercent        *struct {
 		Base   int `json:"base"`
 		Factor int `json:"factor"`
@@ -448,6 +451,39 @@ type ConfirmGiftTransferBatchRequest struct {
 		// Timestamp Timestamp in milliseconds. Show only records that occurred after this timestamp (includes it)
 		Timestamp int64 `json:"timestamp"`
 	} `json:"signatureData"`
+}
+
+// ConfirmPutUpForSaleRequest defines model for ConfirmPutUpForSaleRequest.
+type ConfirmPutUpForSaleRequest struct {
+	// Currency TON by default
+	Currency *Currency `json:"currency,omitempty"`
+
+	// FullPrice Price in nano TON
+	FullPrice   string `json:"fullPrice"`
+	Lang        Lang   `json:"lang"`
+	NftAddress  string `json:"nftAddress"`
+	OmitRoyalty *bool  `json:"omitRoyalty"`
+
+	// OwnerAddress NFT owner address
+	OwnerAddress  *string `json:"ownerAddress,omitempty"`
+	SignatureData *struct {
+		Domain    *string `json:"domain,omitempty"`
+		Signature *string `json:"signature,omitempty"`
+		Text      *string `json:"text,omitempty"`
+
+		// Timestamp Timestamp in milliseconds. Show only records that occurred after this timestamp (includes it)
+		Timestamp *int64 `json:"timestamp,omitempty"`
+	} `json:"signatureData,omitempty"`
+}
+
+// ConfirmPutUpOffchainNftForSaleFixPriceResponse defines model for ConfirmPutUpOffchainNftForSaleFixPriceResponse.
+type ConfirmPutUpOffchainNftForSaleFixPriceResponse struct {
+	Response struct {
+		Currency   Currency `json:"currency"`
+		FullPrice  string   `json:"fullPrice"`
+		NftAddress string   `json:"nftAddress"`
+	} `json:"response"`
+	Success bool `json:"success"`
 }
 
 // ConfirmTransferRequest defines model for ConfirmTransferRequest.
@@ -1252,6 +1288,21 @@ type PutUpNftForSaleRequest struct {
 	OwnerAddress *string `json:"ownerAddress,omitempty"`
 }
 
+// PutUpOffchainNftForSaleRequest defines model for PutUpOffchainNftForSaleRequest.
+type PutUpOffchainNftForSaleRequest struct {
+	// Currency TON by default
+	Currency *Currency `json:"currency,omitempty"`
+
+	// FullPrice Price in nano TON
+	FullPrice   string `json:"fullPrice"`
+	Lang        Lang   `json:"lang"`
+	NftAddress  string `json:"nftAddress"`
+	OmitRoyalty *bool  `json:"omitRoyalty"`
+
+	// OwnerAddress NFT owner address
+	OwnerAddress *string `json:"ownerAddress,omitempty"`
+}
+
 // ReindexResponse defines model for ReindexResponse.
 type ReindexResponse struct {
 	Response struct {
@@ -1962,6 +2013,12 @@ type V1BuyNftFixPriceJSONRequestBody = BuyNftFixPriceRequest
 // V1GetNftsByAddressesJSONRequestBody defines body for V1GetNftsByAddresses for application/json ContentType.
 type V1GetNftsByAddressesJSONRequestBody = NftItemsByAddressRequestBody
 
+// V1ConfirmPutUpOffchainNftForSaleFixPriceJSONRequestBody defines body for V1ConfirmPutUpOffchainNftForSaleFixPrice for application/json ContentType.
+type V1ConfirmPutUpOffchainNftForSaleFixPriceJSONRequestBody = ConfirmPutUpForSaleRequest
+
+// V1PutUpOffchainNftForSaleFixPriceJSONRequestBody defines body for V1PutUpOffchainNftForSaleFixPrice for application/json ContentType.
+type V1PutUpOffchainNftForSaleFixPriceJSONRequestBody = PutUpOffchainNftForSaleRequest
+
 // V1PutUpNftForSaleFixPriceJSONRequestBody defines body for V1PutUpNftForSaleFixPrice for application/json ContentType.
 type V1PutUpNftForSaleFixPriceJSONRequestBody = PutUpNftForSaleRequest
 
@@ -2612,11 +2669,21 @@ type ClientInterface interface {
 
 	V1GetNftsByAddresses(ctx context.Context, body V1GetNftsByAddressesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1ConfirmPutUpOffchainNftForSaleFixPriceWithBody request with any body
+	V1ConfirmPutUpOffchainNftForSaleFixPriceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1ConfirmPutUpOffchainNftForSaleFixPrice(ctx context.Context, body V1ConfirmPutUpOffchainNftForSaleFixPriceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1GetOffchainGiftsOnSale request
 	V1GetOffchainGiftsOnSale(ctx context.Context, params *V1GetOffchainGiftsOnSaleParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1GetOffchainNftsOnSale request
 	V1GetOffchainNftsOnSale(ctx context.Context, collectionAddress string, params *V1GetOffchainNftsOnSaleParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1PutUpOffchainNftForSaleFixPriceWithBody request with any body
+	V1PutUpOffchainNftForSaleFixPriceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1PutUpOffchainNftForSaleFixPrice(ctx context.Context, body V1PutUpOffchainNftForSaleFixPriceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1GetNftsOnSale request
 	V1GetNftsOnSale(ctx context.Context, collectionAddress string, params *V1GetNftsOnSaleParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3609,6 +3676,30 @@ func (c *Client) V1GetNftsByAddresses(ctx context.Context, body V1GetNftsByAddre
 	return c.Client.Do(req)
 }
 
+func (c *Client) V1ConfirmPutUpOffchainNftForSaleFixPriceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ConfirmPutUpOffchainNftForSaleFixPriceRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ConfirmPutUpOffchainNftForSaleFixPrice(ctx context.Context, body V1ConfirmPutUpOffchainNftForSaleFixPriceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ConfirmPutUpOffchainNftForSaleFixPriceRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) V1GetOffchainGiftsOnSale(ctx context.Context, params *V1GetOffchainGiftsOnSaleParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1GetOffchainGiftsOnSaleRequest(c.Server, params)
 	if err != nil {
@@ -3623,6 +3714,30 @@ func (c *Client) V1GetOffchainGiftsOnSale(ctx context.Context, params *V1GetOffc
 
 func (c *Client) V1GetOffchainNftsOnSale(ctx context.Context, collectionAddress string, params *V1GetOffchainNftsOnSaleParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1GetOffchainNftsOnSaleRequest(c.Server, collectionAddress, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1PutUpOffchainNftForSaleFixPriceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1PutUpOffchainNftForSaleFixPriceRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1PutUpOffchainNftForSaleFixPrice(ctx context.Context, body V1PutUpOffchainNftForSaleFixPriceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1PutUpOffchainNftForSaleFixPriceRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7124,6 +7239,46 @@ func NewV1GetNftsByAddressesRequestWithBody(server string, contentType string, b
 	return req, nil
 }
 
+// NewV1ConfirmPutUpOffchainNftForSaleFixPriceRequest calls the generic V1ConfirmPutUpOffchainNftForSaleFixPrice builder with application/json body
+func NewV1ConfirmPutUpOffchainNftForSaleFixPriceRequest(server string, body V1ConfirmPutUpOffchainNftForSaleFixPriceJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1ConfirmPutUpOffchainNftForSaleFixPriceRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewV1ConfirmPutUpOffchainNftForSaleFixPriceRequestWithBody generates requests for V1ConfirmPutUpOffchainNftForSaleFixPrice with any type of body
+func NewV1ConfirmPutUpOffchainNftForSaleFixPriceRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/nfts/offchain/confirm-put-on-sale-fix-price")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewV1GetOffchainGiftsOnSaleRequest generates requests for V1GetOffchainGiftsOnSale
 func NewV1GetOffchainGiftsOnSaleRequest(server string, params *V1GetOffchainGiftsOnSaleParams) (*http.Request, error) {
 	var err error
@@ -7257,6 +7412,46 @@ func NewV1GetOffchainNftsOnSaleRequest(server string, collectionAddress string, 
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewV1PutUpOffchainNftForSaleFixPriceRequest calls the generic V1PutUpOffchainNftForSaleFixPrice builder with application/json body
+func NewV1PutUpOffchainNftForSaleFixPriceRequest(server string, body V1PutUpOffchainNftForSaleFixPriceJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1PutUpOffchainNftForSaleFixPriceRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewV1PutUpOffchainNftForSaleFixPriceRequestWithBody generates requests for V1PutUpOffchainNftForSaleFixPrice with any type of body
+func NewV1PutUpOffchainNftForSaleFixPriceRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/nfts/offchain/put-on-sale-fix-price")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -8512,11 +8707,21 @@ type ClientWithResponsesInterface interface {
 
 	V1GetNftsByAddressesWithResponse(ctx context.Context, body V1GetNftsByAddressesJSONRequestBody, reqEditors ...RequestEditorFn) (*V1GetNftsByAddressesResp, error)
 
+	// V1ConfirmPutUpOffchainNftForSaleFixPriceWithBodyWithResponse request with any body
+	V1ConfirmPutUpOffchainNftForSaleFixPriceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1ConfirmPutUpOffchainNftForSaleFixPriceResp, error)
+
+	V1ConfirmPutUpOffchainNftForSaleFixPriceWithResponse(ctx context.Context, body V1ConfirmPutUpOffchainNftForSaleFixPriceJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ConfirmPutUpOffchainNftForSaleFixPriceResp, error)
+
 	// V1GetOffchainGiftsOnSaleWithResponse request
 	V1GetOffchainGiftsOnSaleWithResponse(ctx context.Context, params *V1GetOffchainGiftsOnSaleParams, reqEditors ...RequestEditorFn) (*V1GetOffchainGiftsOnSaleResp, error)
 
 	// V1GetOffchainNftsOnSaleWithResponse request
 	V1GetOffchainNftsOnSaleWithResponse(ctx context.Context, collectionAddress string, params *V1GetOffchainNftsOnSaleParams, reqEditors ...RequestEditorFn) (*V1GetOffchainNftsOnSaleResp, error)
+
+	// V1PutUpOffchainNftForSaleFixPriceWithBodyWithResponse request with any body
+	V1PutUpOffchainNftForSaleFixPriceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1PutUpOffchainNftForSaleFixPriceResp, error)
+
+	V1PutUpOffchainNftForSaleFixPriceWithResponse(ctx context.Context, body V1PutUpOffchainNftForSaleFixPriceJSONRequestBody, reqEditors ...RequestEditorFn) (*V1PutUpOffchainNftForSaleFixPriceResp, error)
 
 	// V1GetNftsOnSaleWithResponse request
 	V1GetNftsOnSaleWithResponse(ctx context.Context, collectionAddress string, params *V1GetNftsOnSaleParams, reqEditors ...RequestEditorFn) (*V1GetNftsOnSaleResp, error)
@@ -9887,6 +10092,29 @@ func (r V1GetNftsByAddressesResp) StatusCode() int {
 	return 0
 }
 
+type V1ConfirmPutUpOffchainNftForSaleFixPriceResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ConfirmPutUpOffchainNftForSaleFixPriceResponse
+	JSON400      *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ConfirmPutUpOffchainNftForSaleFixPriceResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ConfirmPutUpOffchainNftForSaleFixPriceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type V1GetOffchainGiftsOnSaleResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -9927,6 +10155,29 @@ func (r V1GetOffchainNftsOnSaleResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1GetOffchainNftsOnSaleResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1PutUpOffchainNftForSaleFixPriceResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *RequestTransferResponse
+	JSON400      *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1PutUpOffchainNftForSaleFixPriceResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1PutUpOffchainNftForSaleFixPriceResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -11060,6 +11311,23 @@ func (c *ClientWithResponses) V1GetNftsByAddressesWithResponse(ctx context.Conte
 	return ParseV1GetNftsByAddressesResp(rsp)
 }
 
+// V1ConfirmPutUpOffchainNftForSaleFixPriceWithBodyWithResponse request with arbitrary body returning *V1ConfirmPutUpOffchainNftForSaleFixPriceResp
+func (c *ClientWithResponses) V1ConfirmPutUpOffchainNftForSaleFixPriceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1ConfirmPutUpOffchainNftForSaleFixPriceResp, error) {
+	rsp, err := c.V1ConfirmPutUpOffchainNftForSaleFixPriceWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ConfirmPutUpOffchainNftForSaleFixPriceResp(rsp)
+}
+
+func (c *ClientWithResponses) V1ConfirmPutUpOffchainNftForSaleFixPriceWithResponse(ctx context.Context, body V1ConfirmPutUpOffchainNftForSaleFixPriceJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ConfirmPutUpOffchainNftForSaleFixPriceResp, error) {
+	rsp, err := c.V1ConfirmPutUpOffchainNftForSaleFixPrice(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ConfirmPutUpOffchainNftForSaleFixPriceResp(rsp)
+}
+
 // V1GetOffchainGiftsOnSaleWithResponse request returning *V1GetOffchainGiftsOnSaleResp
 func (c *ClientWithResponses) V1GetOffchainGiftsOnSaleWithResponse(ctx context.Context, params *V1GetOffchainGiftsOnSaleParams, reqEditors ...RequestEditorFn) (*V1GetOffchainGiftsOnSaleResp, error) {
 	rsp, err := c.V1GetOffchainGiftsOnSale(ctx, params, reqEditors...)
@@ -11076,6 +11344,23 @@ func (c *ClientWithResponses) V1GetOffchainNftsOnSaleWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParseV1GetOffchainNftsOnSaleResp(rsp)
+}
+
+// V1PutUpOffchainNftForSaleFixPriceWithBodyWithResponse request with arbitrary body returning *V1PutUpOffchainNftForSaleFixPriceResp
+func (c *ClientWithResponses) V1PutUpOffchainNftForSaleFixPriceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1PutUpOffchainNftForSaleFixPriceResp, error) {
+	rsp, err := c.V1PutUpOffchainNftForSaleFixPriceWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1PutUpOffchainNftForSaleFixPriceResp(rsp)
+}
+
+func (c *ClientWithResponses) V1PutUpOffchainNftForSaleFixPriceWithResponse(ctx context.Context, body V1PutUpOffchainNftForSaleFixPriceJSONRequestBody, reqEditors ...RequestEditorFn) (*V1PutUpOffchainNftForSaleFixPriceResp, error) {
+	rsp, err := c.V1PutUpOffchainNftForSaleFixPrice(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1PutUpOffchainNftForSaleFixPriceResp(rsp)
 }
 
 // V1GetNftsOnSaleWithResponse request returning *V1GetNftsOnSaleResp
@@ -13192,6 +13477,39 @@ func ParseV1GetNftsByAddressesResp(rsp *http.Response) (*V1GetNftsByAddressesRes
 	return response, nil
 }
 
+// ParseV1ConfirmPutUpOffchainNftForSaleFixPriceResp parses an HTTP response from a V1ConfirmPutUpOffchainNftForSaleFixPriceWithResponse call
+func ParseV1ConfirmPutUpOffchainNftForSaleFixPriceResp(rsp *http.Response) (*V1ConfirmPutUpOffchainNftForSaleFixPriceResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ConfirmPutUpOffchainNftForSaleFixPriceResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ConfirmPutUpOffchainNftForSaleFixPriceResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseV1GetOffchainGiftsOnSaleResp parses an HTTP response from a V1GetOffchainGiftsOnSaleWithResponse call
 func ParseV1GetOffchainGiftsOnSaleResp(rsp *http.Response) (*V1GetOffchainGiftsOnSaleResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -13248,6 +13566,39 @@ func ParseV1GetOffchainNftsOnSaleResp(rsp *http.Response) (*V1GetOffchainNftsOnS
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest DefaultErrorObject
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1PutUpOffchainNftForSaleFixPriceResp parses an HTTP response from a V1PutUpOffchainNftForSaleFixPriceWithResponse call
+func ParseV1PutUpOffchainNftForSaleFixPriceResp(rsp *http.Response) (*V1PutUpOffchainNftForSaleFixPriceResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1PutUpOffchainNftForSaleFixPriceResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest RequestTransferResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

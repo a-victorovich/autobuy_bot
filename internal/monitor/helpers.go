@@ -1,13 +1,13 @@
 package monitor
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
 	"strings"
 	"time"
-	"context"
 
 	getgemsapi "github.com/yourorg/nft-scanner/internal/getgems/openapi"
 )
@@ -28,6 +28,7 @@ func decodeListingEvent(item getgemsapi.NftItemHistoryItem) (listingEvent, bool)
 		CollectionAddress: stringValue(item.CollectionAddress),
 		PriceNano:         stringValue(typeData.PriceNano),
 		Currency:          stringPtrValue(typeData.Currency),
+		IsOffchain:        item.IsOffchain,
 	}, true
 }
 
@@ -97,7 +98,6 @@ func tonFromNano(nano int64) float64 {
 func tonToNano(nano float64) int64 {
 	return int64(math.Ceil(nano * 1_000_000_000))
 }
-
 
 func shorten(s string) string {
 	if len(s) <= 12 {

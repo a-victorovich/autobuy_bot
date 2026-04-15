@@ -1,9 +1,12 @@
 package wallet
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
@@ -48,6 +51,13 @@ type Wallet struct {
 	cft config.WalletConfig
 }
 
+type SignDataPayloadType string
+
+const (
+	SignDataPayloadTypeText   SignDataPayloadType = "text"
+	SignDataPayloadTypeBinary SignDataPayloadType = "binary"
+)
+
 // New creates a wallet from config without eagerly connecting to lite servers.
 func New(cfg config.WalletConfig) (*Wallet, error) {
 	words, err := normalizeSecretPhrase(cfg.SecretPhrase)
@@ -72,6 +82,78 @@ func New(cfg config.WalletConfig) (*Wallet, error) {
 // GetAddress returns the current wallet address in non-bounceable form.
 func (w *Wallet) GetAddress() string {
 	return w.instance.WalletAddress().String()
+}
+
+func (w *Wallet) SignData(ctx context.Context, payloadType SignDataPayloadType, payload []byte, domain string, timestamp int64) (string, error) {
+	_ = ctx
+
+	if w == nil || w.instance == nil {
+		return "", errors.New("wallet instance is not initialized")
+	}
+	if domain == "" {
+		return "", errors.New("domain is required")
+	}
+	if timestamp <= 0 {
+		return "", errors.New("timestamp must be positive unix time in seconds")
+	}
+	if payload == nil {
+		payload = []byte{}
+	}
+
+	privateKey := w.instance.PrivateKey()
+	if privateKey == nil {
+		return "", errors.New("wallet private key is not set")
+	}
+
+	addr, err := address.ParseAddr(w.GetAddress())
+	if err != nil {
+		return "", fmt.Errorf("parse wallet address: %w", err)
+	}
+	addressHash := addr.Data()
+	if len(addressHash) != 32 {
+		return "", fmt.Errorf("unexpected wallet address hash length: %d", len(addressHash))
+	}
+
+	domainBytes := []byte(domain)
+
+	workchainBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(workchainBuf, uint32(addr.Workchain()))
+
+	domainLenBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(domainLenBuf, uint32(len(domainBytes)))
+
+	timestampBuf := make([]byte, 8)
+	binary.BigEndian.PutUint64(timestampBuf, uint64(timestamp))
+
+	var payloadPrefix []byte
+	switch payloadType {
+	case SignDataPayloadTypeText:
+		payloadPrefix = []byte("txt")
+	case SignDataPayloadTypeBinary:
+		payloadPrefix = []byte("bin")
+	default:
+		return "", fmt.Errorf("unsupported payload type: %s", payloadType)
+	}
+
+	payloadLenBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(payloadLenBuf, uint32(len(payload)))
+
+	preimage := bytes.Join([][]byte{
+		{0xff, 0xff},
+		[]byte("ton-connect/sign-data/"),
+		workchainBuf,
+		addressHash,
+		domainLenBuf,
+		domainBytes,
+		timestampBuf,
+		payloadPrefix,
+		payloadLenBuf,
+		payload,
+	}, nil)
+
+	digest := sha256.Sum256(preimage)
+	signature := ed25519.Sign(privateKey, digest[:])
+	return base64.StdEncoding.EncodeToString(signature), nil
 }
 
 func (w *Wallet) InitWalletBOC(ctx context.Context) ([]byte, error) {

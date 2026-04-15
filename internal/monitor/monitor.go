@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"runtime"
 	"strconv"
 	"sync"
@@ -58,6 +59,7 @@ type listingEvent struct {
 	CollectionAddress string
 	PriceNano         string
 	Currency          string
+	IsOffchain        bool
 }
 
 // New constructs a Monitor. Call Run to start the polling loop.
@@ -666,7 +668,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 func (m *Monitor) updateWalletBalanceAndSeqno(ctx context.Context) (string, error) {
 	m.walletMu.Lock()
 	defer m.walletMu.Unlock()
-	
+
 	seqno, accountState, balance, err := m.fetchWalletSeqnoAndBalance(ctx)
 	if err != nil {
 		return "", err
@@ -722,7 +724,12 @@ func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPr
 			return
 		}
 
-		err := m.putUpForSaleAttempt(ctx, event, saleVersion, newPrice, attempt)
+		var err error
+		if event.IsOffchain {
+			err = m.putUpOffchainForSaleAttempt(ctx, event, saleVersion, newPrice, attempt)
+		} else {
+			err = m.putUpForSaleAttempt(ctx, event, saleVersion, newPrice, attempt)
+		}
 		lastErr = err
 
 		if err != nil {
@@ -842,6 +849,103 @@ func (m *Monitor) putUpForSaleAttempt(
 
 	if _, err := m.sendSignedTransaction(ctx, event, saleVersion, saleTx.JSON200, false); err != nil {
 		slog.Error("Failed to send signed sale transaction",
+			"nft", shorten(event.Address),
+			"attempt", attempt,
+			"err", err,
+		)
+		return err
+	}
+
+	return nil
+}
+
+func (m *Monitor) putUpOffchainForSaleAttempt(
+	ctx context.Context,
+	event listingEvent,
+	saleVersion string,
+	newPrice int64,
+	attempt int,
+) error {
+	slog.Info(fmt.Sprintf("Attempt #%d to put up offchain NFT for sale", attempt),
+		"nft", shorten(event.Address),
+		"saleVersion", saleVersion,
+		"priceNano", newPrice,
+	)
+
+	price := strconv.FormatInt(newPrice, 10)
+	walletAddress := m.wallet.GetAddress()
+	omitRoyalty := !m.hasRoyaltyCollection(event.CollectionAddress)
+	currency := getgemsapi.Currency(event.Currency)
+
+	putResp, err := m.api.V1PutUpOffchainNftForSaleFixPriceWithResponse(ctx, getgemsapi.V1PutUpOffchainNftForSaleFixPriceJSONRequestBody{
+		NftAddress:   event.Address,
+		OwnerAddress: &walletAddress,
+		FullPrice:    price,
+		Currency:     &currency,
+		OmitRoyalty:  Ptr(omitRoyalty),
+		Lang:         getgemsapi.Lang("en"),
+	})
+	if err != nil {
+		slog.Error("Failed to create offchain sale request",
+			"nft", shorten(event.Address),
+			"attempt", attempt,
+			"err", err,
+		)
+		return err
+	}
+	if err := requireJSON200(putResp.StatusCode(), putResp.JSON200 != nil, putResp.JSON400, putResp.Body); err != nil {
+		slog.Error("Getgems rejected offchain put-up request",
+			"nft", shorten(event.Address),
+			"attempt", attempt,
+			"err", err,
+		)
+		return err
+	}
+	if putResp.JSON200 == nil || !putResp.JSON200.Success {
+		return fmt.Errorf("empty offchain put-up response")
+	}
+
+	signText := putResp.JSON200.Response.SignatureData.Text
+	if signText == "" {
+		return fmt.Errorf("offchain put-up response does not contain signature text")
+	}
+
+	signDomain := getgemsSignDomain(m.cfg.Getgems.WebURL, m.cfg.Getgems.BaseURL)
+	signTimestamp := time.Now().Unix()
+	signature, err := m.wallet.SignData(ctx, wallet.SignDataPayloadTypeText, []byte(signText), signDomain, signTimestamp)
+	if err != nil {
+		return fmt.Errorf("sign offchain put-up payload: %w", err)
+	}
+
+	confirmResp, err := m.api.V1ConfirmPutUpOffchainNftForSaleFixPriceWithResponse(ctx, getgemsapi.V1ConfirmPutUpOffchainNftForSaleFixPriceJSONRequestBody{
+		NftAddress:   event.Address,
+		OwnerAddress: &walletAddress,
+		FullPrice:    price,
+		Currency:     &currency,
+		OmitRoyalty:  Ptr(omitRoyalty),
+		Lang:         getgemsapi.Lang("en"),
+		SignatureData: &struct {
+			Domain    *string `json:"domain,omitempty"`
+			Signature *string `json:"signature,omitempty"`
+			Text      *string `json:"text,omitempty"`
+			Timestamp *int64  `json:"timestamp,omitempty"`
+		}{
+			Domain:    &signDomain,
+			Signature: &signature,
+			Text:      &signText,
+			Timestamp: &signTimestamp,
+		},
+	})
+	if err != nil {
+		slog.Error("Failed to confirm offchain sale request",
+			"nft", shorten(event.Address),
+			"attempt", attempt,
+			"err", err,
+		)
+		return err
+	}
+	if err := requireJSON200(confirmResp.StatusCode(), confirmResp.JSON200 != nil, confirmResp.JSON400, confirmResp.Body); err != nil {
+		slog.Error("Getgems rejected offchain confirm request",
 			"nft", shorten(event.Address),
 			"attempt", attempt,
 			"err", err,
@@ -990,4 +1094,22 @@ func (m *Monitor) buildSignedTxBoc(ctx context.Context, seqno uint32, withStateI
 	}
 
 	return signedBOC, nil
+}
+
+func getgemsSignDomain(webURL, baseURL string) string {
+	for _, raw := range []string{webURL, baseURL} {
+		if raw == "" {
+			continue
+		}
+
+		parsed, err := url.Parse(raw)
+		if err != nil {
+			continue
+		}
+		if host := parsed.Hostname(); host != "" {
+			return host
+		}
+	}
+
+	return "getgems.io"
 }
