@@ -163,3 +163,6 @@ make generate-toncenter-openapi
 ```
 make generate-gifts-config ARGS="-percent 10 -api-key "
 ```
+
+## Real-world TESTS
+go run ./cmd/tests -config config.local.yaml -nft-address <NFT_ADDRESS> -price-nano <PRICE_IN_NANO>

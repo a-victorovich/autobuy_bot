@@ -1096,6 +1096,42 @@ func (m *Monitor) buildSignedTxBoc(ctx context.Context, seqno uint32, withStateI
 	return signedBOC, nil
 }
 
+func (m *Monitor) InitWallet(ctx context.Context) error {
+	return m.initWallet(ctx)
+}
+
+func (m *Monitor) PutUpOffchainForSaleAttempt(ctx context.Context, nftAddress string, newPrice int64) error {
+	nftResp, err := m.fetchNft(ctx, nftAddress)
+	if err != nil {
+		return fmt.Errorf("fetch NFT before offchain put-up: %w", err)
+	}
+	if nftResp == nil || nftResp.JSON200 == nil || nftResp.JSON200.Response == nil {
+		return fmt.Errorf("empty NFT response")
+	}
+
+	nft := nftResp.JSON200.Response
+	collectionAddress := stringValue(nft.CollectionAddress)
+	if collectionAddress == "" {
+		return fmt.Errorf("NFT %s does not contain collectionAddress", shorten(nftAddress))
+	}
+
+	currency := "TON"
+	if nft.Sale != nil {
+		if sale, saleErr := nft.Sale.AsFixPriceSale(); saleErr == nil && sale.Currency != "" {
+			currency = string(sale.Currency)
+		}
+	}
+
+	event := listingEvent{
+		Address:           nftAddress,
+		CollectionAddress: collectionAddress,
+		Currency:          currency,
+		IsOffchain:        true,
+	}
+
+	return m.putUpOffchainForSaleAttempt(ctx, event, "put-up-for-sale", newPrice, 1)
+}
+
 func getgemsSignDomain(webURL, baseURL string) string {
 	for _, raw := range []string{webURL, baseURL} {
 		if raw == "" {
