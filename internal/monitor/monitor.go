@@ -659,7 +659,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 			)
 		}
 
-		// m.tryPutUpForSale(ctx, event, newPrice)
+		m.tryPutUpForSale(ctx, event, newPrice)
 	}
 
 	m.updateWalletBalanceAndSeqno(ctx)
