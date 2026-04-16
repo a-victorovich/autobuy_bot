@@ -692,14 +692,22 @@ func (m *Monitor) fetchValidatedSaleVersion(ctx context.Context, event listingEv
 	}
 
 	ok, saleVersion, reason := validateNftSaleDetails(event, nftResp)
+
+	nftRespJSON, marshalErr := json.Marshal(nftResp)
+	stringifiedNftResp := string(nftRespJSON)
+	if marshalErr != nil {
+		stringifiedNftResp = fmt.Sprintf("%+v", nftResp)
+	}
+
 	slog.Info("Validated NFT sale details",
 		"nft", event.Address,
 		"ok", ok,
 		"saleVersion", saleVersion,
 		"reason", reason,
+		"nftResp", stringifiedNftResp,
 	)
 	if !ok {
-		message := formatInvalidVersion(event.Address, reason)
+		message := formatInvalidVersion(event.Address, reason, stringifiedNftResp)
 		if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
 			slog.Error("Failed to send Telegram fetch sale version",
 				"nft", event.Address,

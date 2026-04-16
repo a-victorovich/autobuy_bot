@@ -144,12 +144,14 @@ func formatSuccessfullyBought(nftAddress string) string {
 	)
 }
 
-func formatInvalidVersion(nftAddress string, reason string) string {
+func formatInvalidVersion(nftAddress string, reason string, nftResp string) string {
 	return fmt.Sprintf(
 		"*Failed* fetch sale data\n\n"+
-		"*NFT:* `%s`\n"+
-		"*Reason:* `$s`",
-		nftAddress,
-		reason,
+			"*NFT:* `%s`\n"+
+			"*Reason:* `%s`\n"+
+			"*GG response:* `%s`\n",
+			nftAddress,
+			reason,
+			nftResp,
 	)
 }
