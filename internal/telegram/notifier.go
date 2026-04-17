@@ -30,6 +30,11 @@ func (n *Notifier) SendSignal(_ context.Context, msg string) error {
 	return n.send(msg, tgbotapi.ModeMarkdown)
 }
 
+// SendPlain sends a message without Telegram entity parsing.
+func (n *Notifier) SendPlain(_ context.Context, msg string) error {
+	return n.send(msg, "")
+}
+
 func (n *Notifier) send(msg, parseMode string) error {
 	mc := tgbotapi.NewMessage(n.chatID, msg)
 	mc.ParseMode = parseMode

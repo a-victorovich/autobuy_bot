@@ -37,9 +37,9 @@ func formatSignalAlert(
 	)
 }
 
-func formatLowBalance (
+func formatLowBalance(
 	walletAddress string,
-	balance, requiredBalance int64, 
+	balance, requiredBalance int64,
 ) string {
 	return fmt.Sprintf(
 		"🆘 *Low Wallet Balance* 🆘\n\n"+
@@ -52,13 +52,13 @@ func formatLowBalance (
 	)
 }
 
-func formatTxResult (
+func formatTxResult(
 	nftAddress, saleVersion string,
 	resp *toncenterapi.SendBocReturnHashPostResp, sendErr error,
 ) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf(
-			"⚠️ *Attempt to buy* ⚠️\n\n"+
+		"⚠️ *Attempt to buy* ⚠️\n\n"+
 			"*NFT:* `%s`\n"+
 			"*Version:* `%s`\n",
 		nftAddress,
@@ -138,9 +138,9 @@ func formatMaxPriceIsLower(
 
 func formatSuccessfullyBought(nftAddress string) string {
 	return fmt.Sprintf(
-		"🛍 *Successfully* bought\n\n"+
-			"*NFT:* `%s`\n"+
-		nftAddress,
+		"🛍 Successfully bought\n\n" +
+			"NFT: %s\n" +
+			nftAddress,
 	)
 }
 
@@ -150,8 +150,8 @@ func formatInvalidVersion(nftAddress string, reason string, nftResp string) stri
 			"*NFT:* `%s`\n"+
 			"*Reason:* `%s`\n"+
 			"*GG response:* `%s`\n",
-			nftAddress,
-			reason,
-			nftResp,
+		nftAddress,
+		reason,
+		nftResp,
 	)
 }

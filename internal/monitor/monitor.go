@@ -652,7 +652,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 	}
 	if ready {
 		message := formatSuccessfullyBought(event.Address)
-		if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
+		if notifyErr := m.notifier.SendPlain(ctx, message); notifyErr != nil {
 			slog.Error("Failed to send Telegram bought message",
 				"nft", event.Address,
 				"err", notifyErr,
