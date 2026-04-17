@@ -693,10 +693,14 @@ func (m *Monitor) fetchValidatedSaleVersion(ctx context.Context, event listingEv
 
 	ok, saleVersion, reason := validateNftSaleDetails(event, nftResp)
 
-	nftRespJSON, marshalErr := json.Marshal(nftResp)
-	stringifiedNftResp := string(nftRespJSON)
-	if marshalErr != nil {
-		stringifiedNftResp = fmt.Sprintf("%+v", nftResp)
+	stringifiedNftResp := string(nftResp.Body)
+	if stringifiedNftResp == "" {
+		nftRespJSON, marshalErr := json.Marshal(nftResp.JSON200)
+		if marshalErr != nil {
+			stringifiedNftResp = fmt.Sprintf("%+v", nftResp)
+		} else {
+			stringifiedNftResp = string(nftRespJSON)
+		}
 	}
 
 	slog.Info("Validated NFT sale details",
