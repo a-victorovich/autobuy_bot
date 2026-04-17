@@ -224,7 +224,7 @@ func (m *Monitor) refreshFloorPrices(ctx context.Context) error {
 		m.mu.Unlock()
 
 		slog.Info("Floor price fetched",
-			"collection", shorten(addr),
+			"collection", addr,
 			"floorPriceNano", floorPrice,
 		)
 	}
@@ -282,7 +282,7 @@ func (m *Monitor) bootstrapNftCursor(ctx context.Context, collectionAddress stri
 	}
 
 	slog.Info("Bootstrapped collection history cursor",
-		"collection", shorten(collectionAddress),
+		"collection", collectionAddress,
 		"items", len(page.Items),
 		"cursor", page.Cursor,
 	)
@@ -307,8 +307,8 @@ func (m *Monitor) scanGiftHistoryBatch(ctx context.Context, cursor string) (stri
 		collectionAddress := stringValue(item.CollectionAddress)
 		if !m.isWatchedGiftCollection(collectionAddress) {
 			slog.Debug("Skipping NFT from unwatched collection",
-				"nft", shorten(item.Address),
-				"collection", shorten(collectionAddress),
+				"nft", item.Address,
+				"collection", collectionAddress,
 			)
 			continue
 		}
@@ -327,7 +327,7 @@ func (m *Monitor) scanNftHistoryBatch(ctx context.Context, collectionAddress, cu
 	}
 
 	slog.Debug("Fetched collection history batch",
-		"collection", shorten(collectionAddress),
+		"collection", collectionAddress,
 		"items", len(page.Items),
 		"newCursor", page.Cursor,
 		"after", cursor,
@@ -396,8 +396,8 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 	if event.Currency != "TON" {
 		slog.Debug("Skipping non-TON sale",
 			"currency", event.Currency,
-			"nft", shorten(event.Address),
-			"collection", shorten(event.CollectionAddress),
+			"nft", event.Address,
+			"collection", event.CollectionAddress,
 		)
 		return
 	}
@@ -405,7 +405,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 	floorPrice, ok := m.floorPrice(event.CollectionAddress)
 	if !ok || floorPrice <= 0 {
 		slog.Warn("No floor price available for collection",
-			"collection", shorten(event.CollectionAddress),
+			"collection", event.CollectionAddress,
 		)
 		return
 	}
@@ -414,7 +414,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 	if err != nil {
 		slog.Warn("Failed to parse sale price nano",
 			"priceNano", event.PriceNano,
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 		)
 		return
 	}
@@ -569,7 +569,7 @@ func (m *Monitor) notifyMatchedListing(
 	actualDiscount, configuredPct float64,
 ) error {
 	slog.Info("Signal found",
-		"nft", shorten(event.Address),
+		"nft", event.Address,
 		"priceNano", salePrice,
 		"floorPriceNano", floorPrice,
 		"discountPct", fmt.Sprintf("%.2f%%", actualDiscount),
@@ -582,7 +582,7 @@ func (m *Monitor) notifyMatchedListing(
 func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEvent, floorPrice int64, price int64) {
 	if !m.cfg.Scanner.PurchasesEnabled {
 		slog.Info("Buy flow is disabled; skipping buy transaction creation",
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 		)
 		return
 	}
@@ -590,7 +590,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 	maxPriceConfig := tonToNano(m.cfg.Scanner.MaxPrice)
 	if maxPriceConfig > 0 && maxPriceConfig < price {
 		slog.Info("Max price is lower that price; skipping buy transaction creation",
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 		)
 
 		message := formatMaxPriceIsLower(event.Address, maxPriceConfig, price)
@@ -733,7 +733,7 @@ func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPr
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if err := waitForRetryDelay(ctx, retryDelay); err != nil {
 			slog.Error("Stopped put up for sale retries",
-				"nft", shorten(event.Address),
+				"nft", event.Address,
 				"err", err,
 			)
 
@@ -767,7 +767,7 @@ func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPr
 	}
 
 	slog.Error("Failed to put up NFT for sale after all attempts",
-		"nft", shorten(event.Address),
+		"nft", event.Address,
 		"attempts", maxAttempts,
 	)
 	m.notifyPutUpForSaleResult(ctx, event.Address, newPrice, lastErr)
@@ -794,7 +794,7 @@ func (m *Monitor) waitBuyTransactionReady(
 	payload, ok := buildCheckTxPayload(buyTx)
 	if !ok {
 		slog.Warn("Buy transaction is missing data for tx status check",
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 			"saleVersion", saleVersion,
 			"buyTx", formatTransactionLog(buyTx),
 		)
@@ -804,18 +804,18 @@ func (m *Monitor) waitBuyTransactionReady(
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if err := waitForRetryDelay(ctx, retryDelay); err != nil {
 			slog.Error("Stopped getting info about buy tx (retries)",
-				"nft", shorten(event.Address),
+				"nft", event.Address,
 				"err", err,
 			)
 			return false, err
 		}
 
-		slog.Info(fmt.Sprintf("Attemp #%d to get buy tx status", attempt), "nft", shorten(event.Address))
+		slog.Info(fmt.Sprintf("Attemp #%d to get buy tx status", attempt), "nft", event.Address)
 
 		checkResp, err := m.api.V1CheckTxStatusWithResponse(ctx, payload)
 		if err != nil {
 			slog.Error("Failed to check buy transaction status",
-				"nft", shorten(event.Address),
+				"nft", event.Address,
 				"saleVersion", saleVersion,
 				"attempt", attempt,
 				"err", err,
@@ -824,7 +824,7 @@ func (m *Monitor) waitBuyTransactionReady(
 		}
 		if checkResp.JSON200 != nil {
 			slog.Info("Checked buy transaction status",
-				"nft", shorten(event.Address),
+				"nft", event.Address,
 				"saleVersion", saleVersion,
 				"attempt", attempt,
 				"status", checkResp.JSON200.Response.State,
@@ -841,7 +841,7 @@ func (m *Monitor) waitBuyTransactionReady(
 		}
 
 		slog.Warn("Buy transaction status check returned non-success response",
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 			"saleVersion", saleVersion,
 			"attempt", attempt,
 			"statusCode", checkResp.StatusCode(),
@@ -861,14 +861,14 @@ func (m *Monitor) putUpForSaleAttempt(
 	attempt int,
 ) error {
 	slog.Info(fmt.Sprintf("Attempt #%d to put up for sale", attempt),
-		"nft", shorten(event.Address),
+		"nft", event.Address,
 		"priceNano", newPrice,
 	)
 
 	saleTx, err := m.createSaleTx(ctx, event.Address, event.CollectionAddress, newPrice, getgemsapi.Currency(event.Currency))
 	if err != nil {
 		slog.Error("Failed to create sale transaction",
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 			"attempt", attempt,
 			"err", err,
 		)
@@ -876,13 +876,13 @@ func (m *Monitor) putUpForSaleAttempt(
 	}
 
 	slog.Info("Created sale transaction",
-		"nft", shorten(event.Address),
+		"nft", event.Address,
 		"attempt", attempt,
 	)
 
 	if _, err := m.sendSignedTransaction(ctx, event, saleVersion, saleTx.JSON200, false); err != nil {
 		slog.Error("Failed to send signed sale transaction",
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 			"attempt", attempt,
 			"err", err,
 		)
@@ -900,7 +900,7 @@ func (m *Monitor) putUpOffchainForSaleAttempt(
 	attempt int,
 ) error {
 	slog.Info(fmt.Sprintf("Attempt #%d to put up offchain NFT for sale", attempt),
-		"nft", shorten(event.Address),
+		"nft", event.Address,
 		"saleVersion", saleVersion,
 		"priceNano", newPrice,
 	)
@@ -920,7 +920,7 @@ func (m *Monitor) putUpOffchainForSaleAttempt(
 	})
 	if err != nil {
 		slog.Error("Failed to create offchain sale request",
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 			"attempt", attempt,
 			"err", err,
 		)
@@ -928,7 +928,7 @@ func (m *Monitor) putUpOffchainForSaleAttempt(
 	}
 	if err := requireJSON200(putResp.StatusCode(), putResp.JSON200 != nil, putResp.JSON400, putResp.Body); err != nil {
 		slog.Error("Getgems rejected offchain put-up request",
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 			"attempt", attempt,
 			"err", err,
 		)
@@ -971,7 +971,7 @@ func (m *Monitor) putUpOffchainForSaleAttempt(
 	})
 	if err != nil {
 		slog.Error("Failed to confirm offchain sale request",
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 			"attempt", attempt,
 			"err", err,
 		)
@@ -979,7 +979,7 @@ func (m *Monitor) putUpOffchainForSaleAttempt(
 	}
 	if err := requireJSON200(confirmResp.StatusCode(), confirmResp.JSON200 != nil, confirmResp.JSON400, confirmResp.Body); err != nil {
 		slog.Error("Getgems rejected offchain confirm request",
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 			"attempt", attempt,
 			"err", err,
 		)
@@ -1013,7 +1013,7 @@ func (m *Monitor) notifyPutUpForSaleResult(ctx context.Context, nftAddress strin
 	message := formatPutUpForSaleResult(nftAddress, newPrice, saleErr)
 	if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
 		slog.Error("Failed to send Telegram sale result",
-			"nft", shorten(nftAddress),
+			"nft", nftAddress,
 			"err", notifyErr,
 		)
 	}
@@ -1052,7 +1052,7 @@ func (m *Monitor) sendSignedTransaction(
 		// slog.Info("Message", message)
 		if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
 			slog.Error("Failed to send Telegram transaction result",
-				"nft", shorten(event.Address),
+				"nft", event.Address,
 				"saleVersion", saleVersion,
 				"err", notifyErr,
 			)
@@ -1082,7 +1082,7 @@ func (m *Monitor) sendSignedTransaction(
 	hash := msgInfo.Hash
 
 	slog.Info("Signed transaction was sent",
-		"nft", shorten(event.Address),
+		"nft", event.Address,
 		"saleVersion", saleVersion,
 		"Body", string(sendBocResp.Body),
 	)
@@ -1165,7 +1165,7 @@ func (m *Monitor) PutUpOffchainForSaleAttempt(ctx context.Context, nftAddress st
 	nft := nftResp.JSON200.Response
 	collectionAddress := stringValue(nft.CollectionAddress)
 	if collectionAddress == "" {
-		return fmt.Errorf("NFT %s does not contain collectionAddress", shorten(nftAddress))
+		return fmt.Errorf("NFT %s does not contain collectionAddress", nftAddress)
 	}
 
 	currency := "TON"
