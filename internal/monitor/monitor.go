@@ -601,7 +601,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 	saleVersion, err := m.fetchValidatedSaleVersion(ctx, event)
 	if err != nil {
 		slog.Error("Failed to validate NFT sale details",
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 			"err", err,
 		)
 		return
@@ -621,20 +621,20 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 	buyTx, err := m.createBuyTx(ctx, event.Address, saleVersion)
 	if err != nil {
 		slog.Error("Failed to create buy transaction",
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 			"saleVersion", saleVersion,
 			"err", err,
 		)
 		return
 	}
 	slog.Info("Created buy transaction",
-		"nft", shorten(event.Address),
+		"nft", event.Address,
 		"saleVersion", saleVersion,
 		"buyTx", formatTransactionLog(buyTx),
 	)
 	if hash, err := m.sendSignedBuyTransaction(ctx, event, saleVersion, buyTx); err != nil {
 		slog.Error("Failed to send signed buy transaction",
-			"nft", shorten(event.Address),
+			"nft", event.Address,
 			"hash", hash,
 			"saleVersion", saleVersion,
 			"err", err,
@@ -643,7 +643,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 
 	m.balance -= requiredAmount
 
-	newPrice := calculateThreshold(floorPrice, m.cfg.Scanner.ResaleDiscountPct)
+	newPrice := calculateThreshold(floorPrice, m.resaleDiscountPct()) // fixme for falling price
 	ready, err := m.waitBuyTransactionReady(ctx, event, saleVersion, buyTx)
 	if err != nil {
 		m.notifyPutUpForSaleResult(ctx, event.Address, newPrice, err)
@@ -654,7 +654,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 		message := formatSuccessfullyBought(event.Address)
 		if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
 			slog.Error("Failed to send Telegram bought message",
-				"nft", shorten(event.Address),
+				"nft", event.Address,
 				"err", notifyErr,
 			)
 		}
@@ -742,10 +742,19 @@ func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPr
 		}
 
 		var err error
-		if event.IsOffchain {
-			err = m.putUpOffchainForSaleAttempt(ctx, event, saleVersion, newPrice, attempt)
-		} else {
-			err = m.putUpForSaleAttempt(ctx, event, saleVersion, newPrice, attempt)
+		switch m.cfg.Scanner.Resale.Type {
+		case "falling_price":
+			if event.IsOffchain {
+				err = m.putUpOffchainForFallingSaleAttempt(ctx, event, saleVersion, newPrice, attempt)
+			} else {
+				err = m.putUpForFallingSaleAttempt(ctx, event, saleVersion, newPrice, attempt)
+			}
+		default:
+			if event.IsOffchain {
+				err = m.putUpOffchainForSaleAttempt(ctx, event, saleVersion, newPrice, attempt)
+			} else {
+				err = m.putUpForSaleAttempt(ctx, event, saleVersion, newPrice, attempt)
+			}
 		}
 		lastErr = err
 
@@ -762,6 +771,13 @@ func (m *Monitor) tryPutUpForSale(ctx context.Context, event listingEvent, newPr
 		"attempts", maxAttempts,
 	)
 	m.notifyPutUpForSaleResult(ctx, event.Address, newPrice, lastErr)
+}
+
+func (m *Monitor) resaleDiscountPct() float64 {
+	if m.cfg.Scanner.Resale.Type == "falling_price" {
+		return m.cfg.Scanner.Resale.MinDiscountPercent
+	}
+	return m.cfg.Scanner.Resale.ResaleDiscountPct
 }
 
 func (m *Monitor) waitBuyTransactionReady(
@@ -971,6 +987,26 @@ func (m *Monitor) putUpOffchainForSaleAttempt(
 	}
 
 	return nil
+}
+
+func (m *Monitor) putUpForFallingSaleAttempt(
+	ctx context.Context,
+	event listingEvent,
+	saleVersion string,
+	newPrice int64,
+	attempt int,
+) error {
+	return m.putUpForSaleAttempt(ctx, event, saleVersion, newPrice, attempt)
+}
+
+func (m *Monitor) putUpOffchainForFallingSaleAttempt(
+	ctx context.Context,
+	event listingEvent,
+	saleVersion string,
+	newPrice int64,
+	attempt int,
+) error {
+	return m.putUpOffchainForSaleAttempt(ctx, event, saleVersion, newPrice, attempt)
 }
 
 func (m *Monitor) notifyPutUpForSaleResult(ctx context.Context, nftAddress string, newPrice int64, saleErr error) {

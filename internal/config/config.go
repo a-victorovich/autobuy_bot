@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -58,10 +59,19 @@ type WalletConfig struct {
 
 // ScannerConfig holds polling and behaviour settings.
 type ScannerConfig struct {
-	PollIntervalSeconds int     `yaml:"poll_interval_seconds"`
-	PurchasesEnabled    bool    `yaml:"purchases_enabled"`
-	ResaleDiscountPct   float64 `yaml:"resale_discount_pct"`
-	MaxPrice            float64 `yaml:"max_price_ton"`
+	PollIntervalSeconds     int      `yaml:"poll_interval_seconds"`
+	PurchasesEnabled        bool     `yaml:"purchases_enabled"`
+	Resale                  Resale   `yaml:"resale"`
+	LegacyResaleDiscountPct *float64 `yaml:"resale_discount_pct"`
+	MaxPrice                float64  `yaml:"max_price_ton"`
+}
+
+type Resale struct {
+	Type               string  `yaml:"type"`
+	ResaleDiscountPct  float64 `yaml:"resale_discount_pct"`
+	MinDiscountPercent float64 `yaml:"min_discount_percent"`
+	MaxDiscountPercent float64 `yaml:"max_discount_percent"`
+	Every              string  `yaml:"every"`
 }
 
 // Load reads and parses the YAML config file at the given path.
@@ -83,6 +93,9 @@ func Load(path string) (*Config, error) {
 	// Apply defaults.
 	if cfg.Scanner.PollIntervalSeconds == 0 {
 		cfg.Scanner.PollIntervalSeconds = 30
+	}
+	if cfg.Scanner.Resale.Type == "" {
+		cfg.Scanner.Resale.Type = "fix_price"
 	}
 	if cfg.Getgems.BaseURL == "" {
 		cfg.Getgems.BaseURL = DefaultGetgemsBaseURL
@@ -121,8 +134,35 @@ func (c *Config) validate(configPath string) error {
 	if len(c.Collections) == 0 && len(c.GiftCollections) == 0 {
 		return fmt.Errorf("at least one of collections or gift_collections must be configured")
 	}
-	if c.Scanner.ResaleDiscountPct < -100 || c.Scanner.ResaleDiscountPct > 100 {
-		return fmt.Errorf("scanner.resale_discount_pct must be between -100 and 100, got %v", c.Scanner.ResaleDiscountPct)
+	switch c.Scanner.Resale.Type {
+	case "", "fix_price":
+		if c.Scanner.Resale.Type == "" {
+			c.Scanner.Resale.Type = "fix_price"
+			if c.Scanner.LegacyResaleDiscountPct != nil {
+				c.Scanner.Resale.ResaleDiscountPct = *c.Scanner.LegacyResaleDiscountPct
+			}
+		}
+		if c.Scanner.Resale.ResaleDiscountPct < -100 || c.Scanner.Resale.ResaleDiscountPct > 100 {
+			return fmt.Errorf("scanner.resale.resale_discount_pct must be between -100 and 100, got %v", c.Scanner.Resale.ResaleDiscountPct)
+		}
+	case "falling_price":
+		if c.Scanner.Resale.MinDiscountPercent < -100 || c.Scanner.Resale.MinDiscountPercent > 100 {
+			return fmt.Errorf("scanner.resale.min_discount_percent must be between -100 and 100, got %v", c.Scanner.Resale.MinDiscountPercent)
+		}
+		if c.Scanner.Resale.MaxDiscountPercent < -100 || c.Scanner.Resale.MaxDiscountPercent > 100 {
+			return fmt.Errorf("scanner.resale.max_discount_percent must be between -100 and 100, got %v", c.Scanner.Resale.MaxDiscountPercent)
+		}
+		if c.Scanner.Resale.MinDiscountPercent > c.Scanner.Resale.MaxDiscountPercent {
+			return fmt.Errorf("scanner.resale.min_discount_percent must be <= scanner.resale.max_discount_percent")
+		}
+		if c.Scanner.Resale.Every == "" {
+			return fmt.Errorf("scanner.resale.every is required for falling_price")
+		}
+		if _, err := time.ParseDuration(c.Scanner.Resale.Every); err != nil {
+			return fmt.Errorf("scanner.resale.every must be a valid duration, got %q: %w", c.Scanner.Resale.Every, err)
+		}
+	default:
+		return fmt.Errorf("scanner.resale.type must be one of \"fix_price\" or \"falling_price\", got %q", c.Scanner.Resale.Type)
 	}
 
 	if allValue, hasAll := c.GiftCollections["all"]; hasAll {
