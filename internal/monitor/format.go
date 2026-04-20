@@ -8,18 +8,6 @@ import (
 	toncenterapi "github.com/yourorg/nft-scanner/internal/toncenter/openapi"
 )
 
-func escapeTelegramMarkdownV2(text string) string {
-    specialChars := `\_*[]()~` + "`" + `>#+-=|{}.!`
-    var b strings.Builder
-    for _, r := range text {
-        if strings.ContainsRune(specialChars, r) {
-            b.WriteRune('\\')
-        }
-        b.WriteRune(r)
-    }
-    return b.String()
-}
-
 func formatSignalAlert(
 	getgemsWebURL string, event listingEvent,
 	floorPrice, salePrice int64,
@@ -73,7 +61,7 @@ func formatTxResult(
 		"⚠️ *Attempt to buy* ⚠️\n\n"+
 			"*NFT:* `%s`\n"+
 			"*Version:* `%s`\n",
-		escapeTelegramMarkdownV2(nftAddress),
+		nftAddress,
 		saleVersion,
 	))
 	b.WriteString("\n")
@@ -116,8 +104,10 @@ func formatPutUpForSaleResult(
 ) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("💲*Put up for sale*\n"))
-	b.WriteString("*NFT*: ")
-	b.WriteString(escapeTelegramMarkdownV2(nftAddress))
+	b.WriteString(fmt.Sprintf(
+		"*NFT:* `%s`\n",
+		nftAddress,
+	))
 	b.WriteString("\n\n")
 
 	if resultErr != nil {
@@ -151,8 +141,8 @@ func formatMaxPriceIsLower(
 func formatSuccessfullyBought(nftAddress string) string {
 	return fmt.Sprintf(
 		"✅ *Successfully* bought\n\n" +
-			"*NFT*: " +
-		escapeTelegramMarkdownV2(nftAddress),
+			"*NFT:* `%s`\n",
+		nftAddress,
 	)
 }
 
