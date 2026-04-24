@@ -36,6 +36,8 @@ type GetgemsConfig struct {
 	APIKey  string `yaml:"api_key"`
 	BaseURL string `yaml:"base_url"`
 	WebURL  string `yaml:"web_url"`
+	WSURL   string `yaml:"ws_url"`
+	UseWS   bool   `yaml:"use_ws"`
 }
 
 // ToncenterConfig holds credentials for the TON Center API v2.

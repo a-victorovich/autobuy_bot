@@ -89,6 +89,10 @@ func (m *Monitor) Run(ctx context.Context) error {
 		return fmt.Errorf("initial floor price fetch: %w", err)
 	}
 
+	if m.cfg.Getgems.UseWS {
+		return m.runWebsocketListener(ctx)
+	}
+
 	interval := time.Duration(m.cfg.Scanner.PollIntervalSeconds) * time.Second
 	slog.Info("Starting history loops", "interval", interval)
 	lastFloorRefreshAt := time.Now()
@@ -527,7 +531,7 @@ func (m *Monitor) fetchNft(ctx context.Context, nftAddress string) (*getgemsapi.
 	return resp, nil
 }
 
-func (m *Monitor) createBuyTx(ctx context.Context, nftAddress, version string) (*getgemsapi.V1BuyNftFixPriceResp, error) {
+func (m *Monitor) createBuyTx(ctx context.Context, nftAddress, version string, price int64) (*getgemsapi.V1BuyNftFixPriceResp, error) {
 	resp, err := m.api.V1BuyNftFixPriceWithResponse(ctx, nftAddress, getgemsapi.V1BuyNftFixPriceJSONRequestBody{
 		Version: version,
 	})
@@ -536,6 +540,15 @@ func (m *Monitor) createBuyTx(ctx context.Context, nftAddress, version string) (
 	}
 	if err := requireJSON200(resp.StatusCode(), resp.JSON200 != nil, resp.JSON400, resp.Body); err != nil {
 		return nil, err
+	}
+
+	if resp.JSON200 == nil || resp.JSON200.Response == nil || resp.JSON200.Response.List == nil || len(*resp.JSON200.Response.List) == 0 {
+		return nil, fmt.Errorf("buy tx response missing amount")
+	}
+
+	amount := (*resp.JSON200.Response.List)[0].Amount
+	if amount == nil || *amount != strconv.FormatInt(price, 10) {
+		return nil, fmt.Errorf("buy tx amount mismatch: got %q want %d", derefString(amount), price)
 	}
 
 	return resp, nil
@@ -618,13 +631,16 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 		return
 	}
 
-	buyTx, err := m.createBuyTx(ctx, event.Address, saleVersion)
+	buyTx, err := m.createBuyTx(ctx, event.Address, saleVersion, price)
 	if err != nil {
 		slog.Error("Failed to create buy transaction",
 			"nft", event.Address,
 			"saleVersion", saleVersion,
 			"err", err,
 		)
+
+		message := formatFailedCreateTx(event.Address, err.Error())
+		m.notifier.SendSignal(ctx, message)
 		return
 	}
 	slog.Info("Created buy transaction",

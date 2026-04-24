@@ -140,7 +140,7 @@ func formatMaxPriceIsLower(
 
 func formatSuccessfullyBought(nftAddress string) string {
 	return fmt.Sprintf(
-		"✅ *Successfully* bought\n\n" +
+		"✅ *Successfully* bought\n\n"+
 			"*NFT:* `%s`\n",
 		nftAddress,
 	)
@@ -155,5 +155,15 @@ func formatInvalidVersion(nftAddress string, reason string, nftResp string) stri
 		nftAddress,
 		reason,
 		nftResp,
+	)
+}
+
+func formatFailedCreateTx(nftAddress string, errorMsg string) string {
+	return fmt.Sprintf(
+		"🚨 *Failed* create buy tx\n\n"+
+			"*NFT:* `%s`\n"+
+			"Error: `%s`\n",
+		nftAddress,
+		errorMsg,
 	)
 }

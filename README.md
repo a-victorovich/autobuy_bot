@@ -60,6 +60,8 @@ getgems:
   api_key: "YOUR_GETGEMS_API_KEY_HERE"
   base_url: "https://api.getgems.io/public-api"  # Optional; defaults to this value
   web_url: "https://getgems.io"                  # Optional; used for alert links
+  ws_url: ""                                     # Optional; required when use_ws is true
+  use_ws: false                                  # Optional; false = poll history API, true = log websocket events
 
 toncenter:
   api_key: "YOUR_TONCENTER_API_KEY_HERE"         # Optional unless your usage requires it
