@@ -24,6 +24,7 @@ const (
 	initialCursorLimit = 1
 	historyBatchLimit  = 100
 	floorRefreshEvery  = 5 * time.Minute
+	balanceRefreshEvery  = 7 * time.Minute
 
 	minTxPrice = 100_000_000
 )
@@ -96,6 +97,7 @@ func (m *Monitor) Run(ctx context.Context) error {
 	interval := time.Duration(m.cfg.Scanner.PollIntervalSeconds) * time.Second
 	slog.Info("Starting history loops", "interval", interval)
 	lastFloorRefreshAt := time.Now()
+	lastBalanceRefreshAt := time.Now()
 
 	giftCursor, err := m.bootstrapGiftCursor(ctx)
 	if err != nil {
@@ -120,6 +122,12 @@ func (m *Monitor) Run(ctx context.Context) error {
 				lastFloorRefreshAt = time.Now()
 			}
 		}
+
+		if time.Since(lastBalanceRefreshAt) >= balanceRefreshEvery {
+			_, err = m.updateWalletBalanceAndSeqno(ctx)
+			slog.Warn("Periodic balance refresh failed", "err", err)
+		} 
+
 
 		immediate := false
 
