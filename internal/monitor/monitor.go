@@ -416,7 +416,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 
 	floorPrice, ok := m.floorPrice(event.CollectionAddress)
 	if !ok || floorPrice <= 0 {
-		slog.Warn("No floor price available for collection",
+		slog.Warn("No floor price available for",
 			"collection", event.CollectionAddress,
 		)
 		return

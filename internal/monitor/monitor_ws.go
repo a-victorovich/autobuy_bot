@@ -73,7 +73,7 @@ func (m *Monitor) runWebsocketListener(ctx context.Context) error {
 			"type", websocketMessageType(messageType),
 			"payload", string(payload),
 		)
-		m.handleWebsocketMessage(messageType, payload)
+		m.handleWebsocketMessage(ctx, messageType, payload)
 	}
 }
 
@@ -95,7 +95,7 @@ type websocketHistoryMessage struct {
 	IsGiftEvent  bool                          `json:"isGiftEvent"`
 }
 
-func (m *Monitor) handleWebsocketMessage(messageType int, payload []byte) {
+func (m *Monitor) handleWebsocketMessage(ctx context.Context, messageType int, payload []byte) {
 	if messageType != websocket.TextMessage {
 		return
 	}
@@ -113,7 +113,7 @@ func (m *Monitor) handleWebsocketMessage(messageType int, payload []byte) {
 			Subscribe: msg.Subscribe,
 		})
 	case "history":
-		m.handleWebsocketHistoryMessage(websocketHistoryMessage{
+		m.handleWebsocketHistoryMessage(ctx, websocketHistoryMessage{
 			Type:         msg.Type,
 			HistoryEvent: msg.HistoryEvent,
 			IsGiftEvent:  msg.IsGiftEvent,
@@ -134,7 +134,13 @@ func (m *Monitor) handleWebsocketSubscriptionsMessage(msg websocketSubscriptions
 	slog.Warn("Subscription does not have giftsPutUpForSale value", "subscribe", msg.Subscribe)
 }
 
-func (m *Monitor) handleWebsocketHistoryMessage(msg websocketHistoryMessage) {
+func (m *Monitor) handleWebsocketHistoryMessage(ctx context.Context, msg websocketHistoryMessage) {
+	watchedCollections := m.cfg.Collections
+	if msg.IsGiftEvent {
+		watchedCollections = m.cfg.GiftCollections
+	}
+
+	m.processItemsWithWorkerPool(ctx, []getgemsapi.NftItemHistoryItem{msg.HistoryEvent}, watchedCollections)
 }
 
 func websocketMessageType(messageType int) string {
