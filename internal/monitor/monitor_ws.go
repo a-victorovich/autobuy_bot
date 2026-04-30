@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -23,7 +24,15 @@ func (m *Monitor) runWebsocketListener(ctx context.Context) error {
 		header.Set("X-API-Key", m.cfg.Getgems.APIKey)
 	}
 
-	conn, resp, err := websocket.DefaultDialer.DialContext(ctx, m.cfg.Getgems.WSURL, header)
+	wsURL, err := url.Parse(m.cfg.Getgems.WSURL)
+	if err != nil {
+		return fmt.Errorf("parse getgems websocket url: %w", err)
+	}
+	query := wsURL.Query()
+	query.Set("subscriptions", "giftsPutUpForSale")
+	wsURL.RawQuery = query.Encode()
+
+	conn, resp, err := websocket.DefaultDialer.DialContext(ctx, wsURL.String(), header)
 	if err != nil {
 		if resp != nil {
 			return fmt.Errorf("dial getgems websocket: status %s: %w", resp.Status, err)
