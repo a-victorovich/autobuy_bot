@@ -21,7 +21,7 @@ func (m *Monitor) runWebsocketListener(ctx context.Context) error {
 
 	header := http.Header{}
 	if m.cfg.Getgems.APIKey != "" {
-		header.Set("X-API-Key", m.cfg.Getgems.APIKey)
+		header.Set("Authorization", m.cfg.Getgems.APIKey)
 	}
 
 	wsURL, err := url.Parse(m.cfg.Getgems.WSURL)
