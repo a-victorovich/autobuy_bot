@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	initialCursorLimit = 1
-	historyBatchLimit  = 100
-	floorRefreshEvery  = 5 * time.Minute
-	balanceRefreshEvery  = 7 * time.Minute
+	initialCursorLimit  = 1
+	historyBatchLimit   = 100
+	floorRefreshEvery   = 5 * time.Minute
+	balanceRefreshEvery = 7 * time.Minute
 
 	minTxPrice = 100_000_000
 )
@@ -126,8 +126,7 @@ func (m *Monitor) Run(ctx context.Context) error {
 		if time.Since(lastBalanceRefreshAt) >= balanceRefreshEvery {
 			_, err = m.updateWalletBalanceAndSeqno(ctx)
 			slog.Warn("Periodic balance refresh failed", "err", err)
-		} 
-
+		}
 
 		immediate := false
 
@@ -211,6 +210,10 @@ func (m *Monitor) initWallet(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (m *Monitor) InitWallet(ctx context.Context) error {
+	return m.initWallet(ctx)
 }
 
 func (m *Monitor) refreshFloorPrices(ctx context.Context) error {
@@ -491,6 +494,26 @@ func (m *Monitor) fetchWalletSeqnoAndBalance(ctx context.Context) (uint32, strin
 	return uint32(*walletInfo.Seqno), string(walletInfo.AccountState), balance, nil
 }
 
+func (m *Monitor) updateWalletBalanceAndSeqno(ctx context.Context) (string, error) {
+	m.walletMu.Lock()
+	defer m.walletMu.Unlock()
+
+	seqno, accountState, balance, err := m.fetchWalletSeqnoAndBalance(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	slog.Info("BALANCE",
+		"seqno", seqno,
+		"accountState", accountState,
+		"balance", balance,
+	)
+
+	m.balance = balance
+	m.seqno = seqno
+	return accountState, nil
+}
+
 func (m *Monitor) fetchCollectionFloorPriceNano(ctx context.Context, collectionAddress string) (string, error) {
 	resp, err := m.api.V1GetCollectionStatsWithResponse(ctx, collectionAddress)
 	if err != nil {
@@ -687,26 +710,6 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 	}
 
 	m.updateWalletBalanceAndSeqno(ctx)
-}
-
-func (m *Monitor) updateWalletBalanceAndSeqno(ctx context.Context) (string, error) {
-	m.walletMu.Lock()
-	defer m.walletMu.Unlock()
-
-	seqno, accountState, balance, err := m.fetchWalletSeqnoAndBalance(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	slog.Info("BALANCE",
-		"seqno", seqno,
-		"accountState", accountState,
-		"balance", balance,
-	)
-
-	m.balance = balance
-	m.seqno = seqno
-	return accountState, nil
 }
 
 func (m *Monitor) fetchValidatedSaleVersion(ctx context.Context, event listingEvent) (string, error) {
@@ -920,6 +923,38 @@ func (m *Monitor) putUpForSaleAttempt(
 	return nil
 }
 
+func (m *Monitor) PutUpOffchainForSaleAttempt(ctx context.Context, nftAddress string, newPrice int64) error {
+	nftResp, err := m.fetchNft(ctx, nftAddress)
+	if err != nil {
+		return fmt.Errorf("fetch NFT before offchain put-up: %w", err)
+	}
+	if nftResp == nil || nftResp.JSON200 == nil || nftResp.JSON200.Response == nil {
+		return fmt.Errorf("empty NFT response")
+	}
+
+	nft := nftResp.JSON200.Response
+	collectionAddress := stringValue(nft.CollectionAddress)
+	if collectionAddress == "" {
+		return fmt.Errorf("NFT %s does not contain collectionAddress", nftAddress)
+	}
+
+	currency := "TON"
+	if nft.Sale != nil {
+		if sale, saleErr := nft.Sale.AsFixPriceSale(); saleErr == nil && sale.Currency != "" {
+			currency = string(sale.Currency)
+		}
+	}
+
+	event := listingEvent{
+		Address:           nftAddress,
+		CollectionAddress: collectionAddress,
+		Currency:          currency,
+		IsOffchain:        true,
+	}
+
+	return m.putUpOffchainForSaleAttempt(ctx, event, "put-up-for-sale", newPrice, 1)
+}
+
 func (m *Monitor) putUpOffchainForSaleAttempt(
 	ctx context.Context,
 	event listingEvent,
@@ -1015,6 +1050,24 @@ func (m *Monitor) putUpOffchainForSaleAttempt(
 	}
 
 	return nil
+}
+
+func getgemsSignDomain(webURL, baseURL string) string {
+	for _, raw := range []string{webURL, baseURL} {
+		if raw == "" {
+			continue
+		}
+
+		parsed, err := url.Parse(raw)
+		if err != nil {
+			continue
+		}
+		if host := parsed.Hostname(); host != "" {
+			return host
+		}
+	}
+
+	return "getgems.io"
 }
 
 func (m *Monitor) putUpForFallingSaleAttempt(
@@ -1175,58 +1228,4 @@ func (m *Monitor) buildSignedTxBoc(ctx context.Context, seqno uint32, withStateI
 	}
 
 	return signedBOC, nil
-}
-
-func (m *Monitor) InitWallet(ctx context.Context) error {
-	return m.initWallet(ctx)
-}
-
-func (m *Monitor) PutUpOffchainForSaleAttempt(ctx context.Context, nftAddress string, newPrice int64) error {
-	nftResp, err := m.fetchNft(ctx, nftAddress)
-	if err != nil {
-		return fmt.Errorf("fetch NFT before offchain put-up: %w", err)
-	}
-	if nftResp == nil || nftResp.JSON200 == nil || nftResp.JSON200.Response == nil {
-		return fmt.Errorf("empty NFT response")
-	}
-
-	nft := nftResp.JSON200.Response
-	collectionAddress := stringValue(nft.CollectionAddress)
-	if collectionAddress == "" {
-		return fmt.Errorf("NFT %s does not contain collectionAddress", nftAddress)
-	}
-
-	currency := "TON"
-	if nft.Sale != nil {
-		if sale, saleErr := nft.Sale.AsFixPriceSale(); saleErr == nil && sale.Currency != "" {
-			currency = string(sale.Currency)
-		}
-	}
-
-	event := listingEvent{
-		Address:           nftAddress,
-		CollectionAddress: collectionAddress,
-		Currency:          currency,
-		IsOffchain:        true,
-	}
-
-	return m.putUpOffchainForSaleAttempt(ctx, event, "put-up-for-sale", newPrice, 1)
-}
-
-func getgemsSignDomain(webURL, baseURL string) string {
-	for _, raw := range []string{webURL, baseURL} {
-		if raw == "" {
-			continue
-		}
-
-		parsed, err := url.Parse(raw)
-		if err != nil {
-			continue
-		}
-		if host := parsed.Hostname(); host != "" {
-			return host
-		}
-	}
-
-	return "getgems.io"
 }

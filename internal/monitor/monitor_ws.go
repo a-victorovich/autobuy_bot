@@ -15,6 +15,24 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type websocketMessage struct {
+	Type         string                        `json:"type"`
+	Subscribe    []string                      `json:"subscribe"`
+	HistoryEvent getgemsapi.NftItemHistoryItem `json:"historyEvent"`
+	IsGiftEvent  bool                          `json:"isGiftEvent"`
+}
+
+type websocketSubscriptionsMessage struct {
+	Type      string   `json:"type"`
+	Subscribe []string `json:"subscribe"`
+}
+
+type websocketHistoryMessage struct {
+	Type         string                        `json:"type"`
+	HistoryEvent getgemsapi.NftItemHistoryItem `json:"historyEvent"`
+	IsGiftEvent  bool                          `json:"isGiftEvent"`
+}
+
 func (m *Monitor) runWebsocketListener(ctx context.Context) error {
 	if m.cfg.Getgems.WSURL == "" {
 		return fmt.Errorf("getgems.ws_url is required when getgems.use_ws is true")
@@ -75,24 +93,6 @@ func (m *Monitor) runWebsocketListener(ctx context.Context) error {
 		)
 		m.handleWebsocketMessage(ctx, messageType, payload)
 	}
-}
-
-type websocketMessage struct {
-	Type         string                        `json:"type"`
-	Subscribe    []string                      `json:"subscribe"`
-	HistoryEvent getgemsapi.NftItemHistoryItem `json:"historyEvent"`
-	IsGiftEvent  bool                          `json:"isGiftEvent"`
-}
-
-type websocketSubscriptionsMessage struct {
-	Type      string   `json:"type"`
-	Subscribe []string `json:"subscribe"`
-}
-
-type websocketHistoryMessage struct {
-	Type         string                        `json:"type"`
-	HistoryEvent getgemsapi.NftItemHistoryItem `json:"historyEvent"`
-	IsGiftEvent  bool                          `json:"isGiftEvent"`
 }
 
 func (m *Monitor) handleWebsocketMessage(ctx context.Context, messageType int, payload []byte) {
