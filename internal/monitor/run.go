@@ -22,6 +22,10 @@ func (m *Monitor) Run(ctx context.Context) error {
 		return fmt.Errorf("initial floor price fetch: %w", err)
 	}
 
+	refreshCtx, stopRefresh := context.WithCancel(ctx)
+	defer stopRefresh()
+	m.runPeriodicStateRefresh(refreshCtx)
+
 	if m.cfg.Getgems.UseWS {
 		return m.runWebsocketListener(ctx)
 	}
@@ -29,11 +33,39 @@ func (m *Monitor) Run(ctx context.Context) error {
 	return m.runHistoryPolling(ctx)
 }
 
+func (m *Monitor) runPeriodicStateRefresh(ctx context.Context) {
+	go func() {
+		floorTicker := time.NewTicker(floorRefreshEvery)
+		defer floorTicker.Stop()
+
+		var balanceTicker *time.Ticker
+		var balanceC <-chan time.Time
+		if m.wallet != nil {
+			balanceTicker = time.NewTicker(balanceRefreshEvery)
+			balanceC = balanceTicker.C
+			defer balanceTicker.Stop()
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-floorTicker.C:
+				if err := m.refreshFloorPrices(ctx); err != nil {
+					slog.Warn("Periodic floor price refresh failed", "err", err)
+				}
+			case <-balanceC:
+				if _, err := m.updateWalletBalanceAndSeqno(ctx); err != nil {
+					slog.Warn("Periodic balance refresh failed", "err", err)
+				}
+			}
+		}
+	}()
+}
+
 func (m *Monitor) runHistoryPolling(ctx context.Context) error {
 	interval := time.Duration(m.cfg.Scanner.PollIntervalSeconds) * time.Second
 	slog.Info("Starting history loops", "interval", interval)
-	lastFloorRefreshAt := time.Now()
-	lastBalanceRefreshAt := time.Now()
 
 	giftCursor, err := m.bootstrapGiftCursor(ctx)
 	if err != nil {
@@ -50,23 +82,6 @@ func (m *Monitor) runHistoryPolling(ctx context.Context) error {
 			"giftCursor", shorten(giftCursor),
 			"collectionCursors", len(collectionCursors),
 		)
-
-		if time.Since(lastFloorRefreshAt) >= floorRefreshEvery {
-			if err := m.refreshFloorPrices(ctx); err != nil {
-				slog.Warn("Periodic floor price refresh failed", "err", err)
-			} else {
-				lastFloorRefreshAt = time.Now()
-			}
-		}
-
-		if time.Since(lastBalanceRefreshAt) >= balanceRefreshEvery {
-			_, err = m.updateWalletBalanceAndSeqno(ctx)
-			if err != nil {
-				slog.Warn("Periodic balance refresh failed", "err", err)
-			} else {
-				lastBalanceRefreshAt = time.Now()
-			}
-		}
 
 		immediate := m.scanHistoryIteration(ctx, &giftCursor, collectionCursors)
 		if immediate {
