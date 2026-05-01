@@ -29,6 +29,7 @@ func decodeListingEvent(item getgemsapi.NftItemHistoryItem) (listingEvent, bool)
 		PriceNano:         stringValue(typeData.PriceNano),
 		Currency:          stringPtrValue(typeData.Currency),
 		IsOffchain:        item.IsOffchain,
+		SaleVersion:       stringValue(typeData.Version),
 	}, true
 }
 

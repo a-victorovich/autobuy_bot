@@ -61,6 +61,7 @@ type listingEvent struct {
 	PriceNano         string
 	Currency          string
 	IsOffchain        bool
+	SaleVersion       string
 }
 
 // New constructs a Monitor. Call Run to start the polling loop.
@@ -550,13 +551,17 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 		return
 	}
 
-	saleVersion, err := m.fetchValidatedSaleVersion(ctx, event)
-	if err != nil {
-		slog.Error("Failed to validate NFT sale details",
-			"nft", event.Address,
-			"err", err,
-		)
-		return
+	saleVersion := event.SaleVersion
+	if !m.cfg.Scanner.UseHistoryVersion || saleVersion == "" {
+		var err error
+		saleVersion, err = m.fetchValidatedSaleVersion(ctx, event)
+		if err != nil {
+			slog.Error("Failed to validate NFT sale details",
+				"nft", event.Address,
+				"err", err,
+			)
+			return
+		}
 	}
 
 	requiredAmount := price + minTxPrice
