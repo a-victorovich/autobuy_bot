@@ -44,6 +44,7 @@ type Monitor struct {
 	toncenter  *toncenterapi.ClientWithResponses
 	wallet     *wallet.Wallet
 	floorCache map[string]int64
+	ownerDeny  map[string]struct{}
 	mu         sync.RWMutex
 	walletMu   sync.Mutex
 	seqno      uint32
@@ -62,17 +63,23 @@ type listingEvent struct {
 	Currency          string
 	IsOffchain        bool
 	SaleVersion       string
+	Owner             string
 }
 
 // New constructs a Monitor. Call Run to start the polling loop.
 func New(cfg *config.Config, api *getgemsapi.ClientWithResponses, notifier *telegram.Notifier) *Monitor {
 	cacheSize := len(cfg.Collections) + len(cfg.GiftCollections)
+	ownerDeny := make(map[string]struct{}, len(cfg.OwnerBlackList))
+	for _, owner := range cfg.OwnerBlackList {
+		ownerDeny[owner] = struct{}{}
+	}
 	return &Monitor{
 		cfg:        cfg,
 		api:        api,
 		notifier:   notifier,
 		toncenter:  toncenter.New(cfg.Toncenter.APIKey, cfg.Toncenter.BaseURL),
 		floorCache: make(map[string]int64, cacheSize),
+		ownerDeny:  ownerDeny,
 	}
 }
 
@@ -309,6 +316,14 @@ func (m *Monitor) processItemsWithWorkerPool(
 func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistoryItem, watchedCollections map[string]float64) {
 	event, ok := decodeListingEvent(item)
 	if !ok {
+		return
+	}
+	if _, blocked := m.ownerDeny[event.Owner]; blocked {
+		slog.Info("Skipping NFT because owner is in blacklist",
+			"owner", event.Owner,
+			"nft", event.Address,
+			"collection", event.CollectionAddress,
+		)
 		return
 	}
 

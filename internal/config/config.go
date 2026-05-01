@@ -29,6 +29,7 @@ type Config struct {
 	Collections        map[string]float64 `yaml:"collections"`      // collectionAddress -> discount percent
 	GiftCollections    map[string]float64 `yaml:"gift_collections"` // gift collectionAddress -> discount percent
 	RoyaltyCollections []string           `yaml:"royalty_collections"`
+	OwnerBlackList     []string           `yaml:"owner_black_list"`
 }
 
 // GetgemsConfig holds credentials for the Getgems public API.
@@ -201,6 +202,9 @@ func (c *Config) validate(configPath string) error {
 	if err := validateCollectionList("royalty_collections", c.RoyaltyCollections); err != nil {
 		return err
 	}
+	if err := validateStringList("owner_black_list", c.OwnerBlackList); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -221,6 +225,15 @@ func validateCollectionList(field string, collections []string) error {
 	for _, addr := range collections {
 		if addr == "" {
 			return fmt.Errorf("%s contains an empty collection address", field)
+		}
+	}
+	return nil
+}
+
+func validateStringList(field string, values []string) error {
+	for _, value := range values {
+		if value == "" {
+			return fmt.Errorf("%s contains an empty value", field)
 		}
 	}
 	return nil

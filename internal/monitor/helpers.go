@@ -30,6 +30,7 @@ func decodeListingEvent(item getgemsapi.NftItemHistoryItem) (listingEvent, bool)
 		Currency:          stringPtrValue(typeData.Currency),
 		IsOffchain:        item.IsOffchain,
 		SaleVersion:       stringValue(typeData.Version),
+		Owner:             stringValue(typeData.Owner),
 	}, true
 }
 
