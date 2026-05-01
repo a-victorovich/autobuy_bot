@@ -53,45 +53,77 @@ func (m *Monitor) runWebsocketListener(ctx context.Context) error {
 	query.Set("subscriptions", "giftsPutUpForSale")
 	wsURL.RawQuery = query.Encode()
 
-	conn, resp, err := websocket.DefaultDialer.DialContext(ctx, wsURL.String(), header)
-	if err != nil {
-		if resp != nil {
-			return fmt.Errorf("dial getgems websocket: status %s: %w", resp.Status, err)
-		}
-		return fmt.Errorf("dial getgems websocket: %w", err)
-	}
-	defer conn.Close()
-
-	done := make(chan struct{})
-	go func() {
-		select {
-		case <-ctx.Done():
-			_ = conn.WriteControl(
-				websocket.CloseMessage,
-				websocket.FormatCloseMessage(websocket.CloseNormalClosure, "context cancelled"),
-				time.Now().Add(time.Second),
-			)
-			_ = conn.Close()
-		case <-done:
-		}
-	}()
-	defer close(done)
-
 	for {
-		messageType, payload, err := conn.ReadMessage()
+		conn, resp, err := websocket.DefaultDialer.DialContext(ctx, wsURL.String(), header)
 		if err != nil {
 			if ctx.Err() != nil {
 				slog.Info("Websocket listener shutting down")
 				return ctx.Err()
 			}
-			return fmt.Errorf("read getgems websocket event: %w", err)
+			if resp != nil {
+				slog.Error("Failed to dial getgems websocket", "status", resp.Status, "err", err)
+			} else {
+				slog.Error("Failed to dial getgems websocket", "err", err)
+			}
+
+			if err := waitWebsocketReconnect(ctx); err != nil {
+				slog.Info("Websocket listener shutting down")
+				return err
+			}
+			continue
 		}
 
-		slog.Info("Received websocket event",
-			"type", websocketMessageType(messageType),
-			"payload", string(payload),
-		)
-		m.handleWebsocketMessage(ctx, messageType, payload)
+		done := make(chan struct{})
+		go func() {
+			select {
+			case <-ctx.Done():
+				_ = conn.WriteControl(
+					websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.CloseNormalClosure, "context cancelled"),
+					time.Now().Add(time.Second),
+				)
+				_ = conn.Close()
+			case <-done:
+			}
+		}()
+
+		for {
+			messageType, payload, err := conn.ReadMessage()
+			if err != nil {
+				close(done)
+				_ = conn.Close()
+
+				if ctx.Err() != nil {
+					slog.Info("Websocket listener shutting down")
+					return ctx.Err()
+				}
+				slog.Error("Failed to read getgems websocket event", "err", err)
+
+				if err := waitWebsocketReconnect(ctx); err != nil {
+					slog.Info("Websocket listener shutting down")
+					return err
+				}
+				break
+			}
+
+			slog.Info("Received websocket event",
+				"type", websocketMessageType(messageType),
+				"payload", string(payload),
+			)
+			m.handleWebsocketMessage(ctx, messageType, payload)
+		}
+	}
+}
+
+func waitWebsocketReconnect(ctx context.Context) error {
+	timer := time.NewTimer(30 * time.Second)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }
 
