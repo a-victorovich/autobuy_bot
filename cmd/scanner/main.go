@@ -36,7 +36,7 @@ func main() {
 
 	apiClient := getgems.New(cfg.Getgems.APIKey, cfg.Getgems.BaseURL)
 
-	notifier, err := telegram.New(cfg.Telegram.BotToken, cfg.Telegram.ChatID)
+	notifier, err := telegram.New(cfg.Telegram.BotToken, cfg.Telegram.ChatID, cfg.Getgems.UseWS)
 	if err != nil {
 		slog.Error("Failed to initialise Telegram notifier", "err", err)
 		os.Exit(1)
@@ -46,6 +46,12 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	go func() {
+		if err := notifier.ProcessIncoming(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			slog.Warn("Telegram incoming processor exited", "err", err)
+		}
+	}()
 
 	if err := mon.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		slog.Error("Monitor exited with error", "err", err)

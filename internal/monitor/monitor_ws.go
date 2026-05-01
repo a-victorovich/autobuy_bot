@@ -56,6 +56,7 @@ func (m *Monitor) runWebsocketListener(ctx context.Context) error {
 	for {
 		conn, resp, err := websocket.DefaultDialer.DialContext(ctx, wsURL.String(), header)
 		if err != nil {
+			m.setWebsocketConnected(false)
 			if ctx.Err() != nil {
 				slog.Info("Websocket listener shutting down")
 				return ctx.Err()
@@ -72,6 +73,7 @@ func (m *Monitor) runWebsocketListener(ctx context.Context) error {
 			}
 			continue
 		}
+		m.setWebsocketConnected(true)
 
 		done := make(chan struct{})
 		go func() {
@@ -92,6 +94,7 @@ func (m *Monitor) runWebsocketListener(ctx context.Context) error {
 			if err != nil {
 				close(done)
 				_ = conn.Close()
+				m.setWebsocketConnected(false)
 
 				if ctx.Err() != nil {
 					slog.Info("Websocket listener shutting down")
@@ -112,6 +115,12 @@ func (m *Monitor) runWebsocketListener(ctx context.Context) error {
 			)
 			m.handleWebsocketMessage(ctx, messageType, payload)
 		}
+	}
+}
+
+func (m *Monitor) setWebsocketConnected(connected bool) {
+	if m.notifier != nil {
+		m.notifier.SetWebsocketConnected(connected)
 	}
 }
 

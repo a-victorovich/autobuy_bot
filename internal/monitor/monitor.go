@@ -314,6 +314,8 @@ func (m *Monitor) processItemsWithWorkerPool(
 }
 
 func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistoryItem, watchedCollections map[string]float64) {
+	defer m.setRunAt(time.Now())
+
 	event, ok := decodeListingEvent(item)
 	if !ok {
 		return
@@ -381,6 +383,12 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 	}
 
 	m.tryPurchaseMatchedListing(ctx, event, floorPrice, price)
+}
+
+func (m *Monitor) setRunAt(runAt time.Time) {
+	if m.notifier != nil {
+		m.notifier.SetRunAt(runAt)
+	}
 }
 
 func (m *Monitor) fetchWalletSeqnoAndBalance(ctx context.Context) (uint32, string, int64, error) {
