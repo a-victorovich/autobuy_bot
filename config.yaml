@@ -35,6 +35,10 @@ gift_collections:
   # gift collectionAddress: discount percent for /v1/nfts/history/gifts
   "EQD...giftCollectionAddress1": 10
 
+collection_price_threshold:
+  # collectionAddress: fixed alert threshold in TON (overrides discount-based threshold)
+  "EQD...collectionAddress1": 2.5
+
 royalty_collections:
   # collectionAddress list where OmitRoyalty is false
   - "EQD...collectionAddress1"

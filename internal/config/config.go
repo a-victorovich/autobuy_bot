@@ -21,15 +21,16 @@ const (
 
 // Config is the root configuration structure loaded from config.yaml.
 type Config struct {
-	Telegram           TelegramConfig     `yaml:"telegram"`
-	Getgems            GetgemsConfig      `yaml:"getgems"`
-	Toncenter          ToncenterConfig    `yaml:"toncenter"`
-	Wallet             WalletConfig       `yaml:"wallet"`
-	Scanner            ScannerConfig      `yaml:"scanner"`
-	Collections        map[string]float64 `yaml:"collections"`      // collectionAddress -> discount percent
-	GiftCollections    map[string]float64 `yaml:"gift_collections"` // gift collectionAddress -> discount percent
-	RoyaltyCollections []string           `yaml:"royalty_collections"`
-	OwnerBlackList     []string           `yaml:"owner_black_list"`
+	Telegram                 TelegramConfig     `yaml:"telegram"`
+	Getgems                  GetgemsConfig      `yaml:"getgems"`
+	Toncenter                ToncenterConfig    `yaml:"toncenter"`
+	Wallet                   WalletConfig       `yaml:"wallet"`
+	Scanner                  ScannerConfig      `yaml:"scanner"`
+	Collections              map[string]float64 `yaml:"collections"`                // collectionAddress -> discount percent
+	GiftCollections          map[string]float64 `yaml:"gift_collections"`           // gift collectionAddress -> discount percent
+	CollectionPriceThreshold map[string]float64 `yaml:"collection_price_threshold"` // collectionAddress -> price in TON
+	RoyaltyCollections       []string           `yaml:"royalty_collections"`
+	OwnerBlackList           []string           `yaml:"owner_black_list"`
 }
 
 // GetgemsConfig holds credentials for the Getgems public API.
@@ -199,6 +200,9 @@ func (c *Config) validate(configPath string) error {
 	if err := validateCollections("gift_collections", c.GiftCollections); err != nil {
 		return err
 	}
+	if err := validateCollectionPriceThreshold(c.CollectionPriceThreshold); err != nil {
+		return err
+	}
 	if err := validateCollectionList("royalty_collections", c.RoyaltyCollections); err != nil {
 		return err
 	}
@@ -216,6 +220,18 @@ func validateCollections(field string, collections map[string]float64) error {
 		}
 		if pct < -100 || pct > 100 {
 			return fmt.Errorf("%s %q: percent must be between -100 and 100, got %v", field, addr, pct)
+		}
+	}
+	return nil
+}
+
+func validateCollectionPriceThreshold(thresholds map[string]float64) error {
+	for addr, price := range thresholds {
+		if addr == "" {
+			return fmt.Errorf("collection_price_threshold contains an empty collection address")
+		}
+		if price < 0 {
+			return fmt.Errorf("collection_price_threshold %q: price must be non-negative, got %v", addr, price)
 		}
 	}
 	return nil

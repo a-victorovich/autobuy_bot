@@ -363,7 +363,13 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		return
 	}
 
-	threshold := calculateThreshold(floorPrice, discountPct)
+	thresholdTON, hasPriceThreshold := m.cfg.CollectionPriceThreshold[event.CollectionAddress]
+	threshold := int64(0)
+	if hasPriceThreshold {
+		threshold = tonToNano(thresholdTON)
+	} else {
+		threshold = calculateThreshold(floorPrice, discountPct)
+	}
 	slog.Debug("Checking NFT",
 		"nft", event.Address,
 		"collection", event.CollectionAddress,
@@ -520,7 +526,7 @@ func (m *Monitor) createBuyTx(ctx context.Context, nftAddress, version string, p
 		}
 		amount += itemAmount
 	}
-	
+
 	// 0.3 TON is an onchain blockchain fee
 	if isOffchain == false {
 		amount += onchainBlockchainFee

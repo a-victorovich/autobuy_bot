@@ -5,9 +5,9 @@ import "testing"
 func TestCalculateThreshold(t *testing.T) {
 	tests := []struct {
 		name        string
-		floorPrice  float64
+		floorPrice  int64
 		discountPct float64
-		want        float64
+		want        int64
 	}{
 		{
 			name:        "zero discount keeps floor price",
