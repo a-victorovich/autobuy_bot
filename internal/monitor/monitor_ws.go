@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"runtime"
 	"strconv"
+	"sync"
 	"time"
 
 	getgemsapi "github.com/yourorg/nft-scanner/internal/getgems/openapi"
@@ -33,6 +35,11 @@ type websocketHistoryMessage struct {
 	IsGiftEvent  bool                          `json:"isGiftEvent"`
 }
 
+type websocketHistoryJob struct {
+	item               getgemsapi.NftItemHistoryItem
+	watchedCollections map[string]float64
+}
+
 func (m *Monitor) runWebsocketListener(ctx context.Context) error {
 	if m.cfg.Getgems.WSURL == "" {
 		return fmt.Errorf("getgems.ws_url is required when getgems.use_ws is true")
@@ -52,6 +59,9 @@ func (m *Monitor) runWebsocketListener(ctx context.Context) error {
 	query := wsURL.Query()
 	query.Set("subscriptions", "giftsPutUpForSale")
 	wsURL.RawQuery = query.Encode()
+
+	historyJobs, stopHistoryWorkers := m.startWebsocketHistoryWorkers(ctx)
+	defer stopHistoryWorkers()
 
 	for {
 		conn, resp, err := websocket.DefaultDialer.DialContext(ctx, wsURL.String(), header)
@@ -113,8 +123,41 @@ func (m *Monitor) runWebsocketListener(ctx context.Context) error {
 				"type", websocketMessageType(messageType),
 				"payload", string(payload),
 			)
-			m.handleWebsocketMessage(ctx, messageType, payload)
+			m.handleWebsocketMessage(ctx, messageType, payload, historyJobs)
 		}
+	}
+}
+
+func (m *Monitor) startWebsocketHistoryWorkers(ctx context.Context) (chan<- websocketHistoryJob, func()) {
+	workers := runtime.GOMAXPROCS(0) * 2
+	if workers < 1 {
+		workers = 1
+	}
+
+	jobs := make(chan websocketHistoryJob, workers*64)
+	var wg sync.WaitGroup
+	wg.Add(workers)
+
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case job, ok := <-jobs:
+					if !ok {
+						return
+					}
+					m.processItem(ctx, job.item, job.watchedCollections)
+				}
+			}
+		}()
+	}
+
+	return jobs, func() {
+		close(jobs)
+		wg.Wait()
 	}
 }
 
@@ -136,7 +179,7 @@ func waitWebsocketReconnect(ctx context.Context) error {
 	}
 }
 
-func (m *Monitor) handleWebsocketMessage(ctx context.Context, messageType int, payload []byte) {
+func (m *Monitor) handleWebsocketMessage(ctx context.Context, messageType int, payload []byte, historyJobs chan<- websocketHistoryJob) {
 	if messageType != websocket.TextMessage {
 		return
 	}
@@ -158,7 +201,7 @@ func (m *Monitor) handleWebsocketMessage(ctx context.Context, messageType int, p
 			Type:         msg.Type,
 			HistoryEvent: msg.HistoryEvent,
 			IsGiftEvent:  msg.IsGiftEvent,
-		})
+		}, historyJobs)
 	default:
 		slog.Warn("Unsupported websocket text message type", "type", msg.Type, "message", string(payload))
 	}
@@ -175,13 +218,19 @@ func (m *Monitor) handleWebsocketSubscriptionsMessage(msg websocketSubscriptions
 	slog.Warn("Subscription does not have giftsPutUpForSale value", "subscribe", msg.Subscribe)
 }
 
-func (m *Monitor) handleWebsocketHistoryMessage(ctx context.Context, msg websocketHistoryMessage) {
+func (m *Monitor) handleWebsocketHistoryMessage(ctx context.Context, msg websocketHistoryMessage, historyJobs chan<- websocketHistoryJob) {
 	watchedCollections := m.cfg.Collections
 	if msg.IsGiftEvent {
 		watchedCollections = m.cfg.GiftCollections
 	}
 
-	m.processItemsWithWorkerPool(ctx, []getgemsapi.NftItemHistoryItem{msg.HistoryEvent}, watchedCollections)
+	select {
+	case <-ctx.Done():
+	case historyJobs <- websocketHistoryJob{
+		item:               msg.HistoryEvent,
+		watchedCollections: watchedCollections,
+	}:
+	}
 }
 
 func websocketMessageType(messageType int) string {
