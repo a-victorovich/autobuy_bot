@@ -21,12 +21,12 @@ import (
 )
 
 const (
-	initialCursorLimit  = 1
-	historyBatchLimit   = 100
-	floorRefreshEvery   = 5 * time.Minute
-	balanceRefreshEvery = 7 * time.Minute
-
-	minTxPrice = 100_000_000
+	initialCursorLimit   = 1
+	historyBatchLimit    = 100
+	floorRefreshEvery    = 5 * time.Minute
+	balanceRefreshEvery  = 7 * time.Minute
+	minTxPrice           = 100_000_000
+	onchainBlockchainFee = 300_000_000
 )
 
 var allowedKinds = map[getgemsapi.NftItemFullKind]struct{}{
@@ -494,7 +494,7 @@ func (m *Monitor) fetchNft(ctx context.Context, nftAddress string) (*getgemsapi.
 	return resp, nil
 }
 
-func (m *Monitor) createBuyTx(ctx context.Context, nftAddress, version string, price int64) (*getgemsapi.V1BuyNftFixPriceResp, error) {
+func (m *Monitor) createBuyTx(ctx context.Context, nftAddress, version string, price int64, isOffchain bool) (*getgemsapi.V1BuyNftFixPriceResp, error) {
 	resp, err := m.api.V1BuyNftFixPriceWithResponse(ctx, nftAddress, getgemsapi.V1BuyNftFixPriceJSONRequestBody{
 		Version: version,
 	})
@@ -509,9 +509,25 @@ func (m *Monitor) createBuyTx(ctx context.Context, nftAddress, version string, p
 		return nil, fmt.Errorf("buy tx response missing amount")
 	}
 
-	amount := (*resp.JSON200.Response.List)[0].Amount
-	if amount == nil || *amount != strconv.FormatInt(price, 10) {
-		return nil, fmt.Errorf("buy tx amount mismatch: got %q want %d", derefString(amount), price)
+	var amount int64
+	for _, item := range *resp.JSON200.Response.List {
+		if item.Amount == nil {
+			continue
+		}
+		itemAmount, err := strconv.ParseInt(*item.Amount, 10, 64)
+		if err != nil {
+			continue
+		}
+		amount += itemAmount
+	}
+	
+	// 0.3 TON is an onchain blockchain fee
+	if isOffchain == false {
+		amount += onchainBlockchainFee
+	}
+
+	if amount != price {
+		return nil, fmt.Errorf("buy tx amount mismatch: got %q want %d", strconv.FormatInt(amount, 10), price)
 	}
 
 	return resp, nil
@@ -598,7 +614,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 		return
 	}
 
-	buyTx, err := m.createBuyTx(ctx, event.Address, saleVersion, price)
+	buyTx, err := m.createBuyTx(ctx, event.Address, saleVersion, price, event.IsOffchain)
 	if err != nil {
 		slog.Error("Failed to create buy transaction",
 			"nft", event.Address,
