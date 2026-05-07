@@ -134,6 +134,15 @@ func (m *Monitor) InitWallet(ctx context.Context) error {
 
 func (m *Monitor) refreshFloorPrices(ctx context.Context) error {
 	for _, addr := range m.watchedCollections() {
+		if thresholdTON, ok := m.cfg.CollectionPriceThreshold[addr]; ok {
+			slog.Info("Skipping floor price refresh due to price threshold config",
+				"collection", addr,
+				"thresholdTon", thresholdTON,
+				"thresholdNano", tonToNano(thresholdTON),
+			)
+			continue
+		}
+
 		floorPriceNano, err := m.fetchCollectionFloorPriceNano(ctx, addr)
 		if err != nil {
 			slog.Warn("Failed to fetch floor price", "collection", addr, "err", err)
