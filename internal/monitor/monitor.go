@@ -538,7 +538,7 @@ func (m *Monitor) createBuyTx(ctx context.Context, nftAddress, version string, p
 
 	// 0.3 TON is an onchain blockchain fee
 	if isOffchain == false {
-		amount += onchainBlockchainFee
+		price += onchainBlockchainFee
 	}
 
 	if amount != price {
