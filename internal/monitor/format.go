@@ -146,15 +146,23 @@ func formatSuccessfullyBought(nftAddress string) string {
 	)
 }
 
-func formatInvalidVersion(nftAddress string, reason string, nftResp string) string {
-	return fmt.Sprintf(
+func formatInvalidVersion(nftAddress string, reason string, nftResp ...string) string {
+	message := fmt.Sprintf(
 		"*Failed* fetch sale data\n\n"+
 			"*NFT:* `%s`\n"+
-			"*Reason:* `%s`\n"+
-			"*GG response:* `%s`\n",
+			"*Reason:* `%s`\n",
 		nftAddress,
 		reason,
-		nftResp,
+	)
+
+	if len(nftResp) == 0 {
+		return message
+	}
+
+	return fmt.Sprintf(
+		"%s*GG response:* `%s`\n",
+		message,
+		nftResp[0],
 	)
 }
 

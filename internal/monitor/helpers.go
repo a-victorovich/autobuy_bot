@@ -69,13 +69,17 @@ func calculateThreshold(floorPrice int64, discountPct float64) int64 {
 }
 
 func validateNftSaleDetails(event listingEvent, nft *getgemsapi.V1GetNftByAddressResp) (bool, string, string) {
-	if nft == nil || nft.JSON200 == nil || !nft.JSON200.Success || nft.JSON200.Response == nil || nft.JSON200.Response.Sale == nil {
+	if nft == nil || nft.JSON200 == nil || !nft.JSON200.Success || nft.JSON200.Response == nil {
 		return false, "", "Response code is not 200"
+	}
+
+	if nft.JSON200.Response.Sale == nil {
+		return false, "", "Response does not have Sale field"
 	}
 
 	sale, err := nft.JSON200.Response.Sale.AsFixPriceSale()
 	if err != nil {
-		return false, "", "Response has no Sale field"
+		return false, "", "Response has invalid Sale field"
 	}
 	if sale.Type != getgemsapi.FixPriceSaleType("FixPriceSale") {
 		return false, sale.Version, fmt.Sprintf("Type is not FixPriceSale: %v", sale.Type)

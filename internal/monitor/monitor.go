@@ -704,8 +704,12 @@ func (m *Monitor) fetchValidatedSaleVersion(ctx context.Context, event listingEv
 		"reason", reason,
 		"nftResp", stringifiedNftResp,
 	)
+
 	if !ok {
 		message := formatInvalidVersion(event.Address, reason, stringifiedNftResp)
+		if reason == "Response does not have Sale field" {
+			message = formatInvalidVersion(event.Address, reason)
+		}
 		if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
 			slog.Error("Failed to send Telegram fetch sale version",
 				"nft", event.Address,
