@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yourorg/nft-scanner/internal/config"
 	getgemsapi "github.com/yourorg/nft-scanner/internal/getgems/openapi"
 )
 
@@ -66,6 +67,35 @@ func discountThreshold(watchedCollections map[string]float64, collectionAddress 
 func calculateThreshold(floorPrice int64, discountPct float64) int64 {
 	result := float64(floorPrice) * (1.0 - discountPct/100.0)
 	return int64(math.Ceil(result))
+}
+
+func matchAttributeThreshold(
+	attributes []getgemsapi.NftItemAttribute,
+	thresholds []config.AttributePriceThreshold,
+) (int64, bool) {
+	var (
+		maxPrice float64
+		matched  bool
+	)
+
+	for _, threshold := range thresholds {
+		thresholdTraitType := strings.ToLower(threshold.TraitType)
+		thresholdValue := strings.ToLower(threshold.Value)
+		for _, attribute := range attributes {
+			if strings.ToLower(attribute.TraitType) != thresholdTraitType || strings.ToLower(attribute.Value) != thresholdValue {
+				continue
+			}
+			if !matched || threshold.Price > maxPrice {
+				maxPrice = threshold.Price
+				matched = true
+			}
+		}
+	}
+	if !matched {
+		return 0, false
+	}
+
+	return tonToNano(maxPrice), true
 }
 
 func validateNftSaleDetails(event listingEvent, nft *getgemsapi.V1GetNftByAddressResp) (bool, string, string) {

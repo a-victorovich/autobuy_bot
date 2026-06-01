@@ -68,7 +68,7 @@ type listingEvent struct {
 
 // New constructs a Monitor. Call Run to start the polling loop.
 func New(cfg *config.Config, api *getgemsapi.ClientWithResponses, notifier *telegram.Notifier) *Monitor {
-	cacheSize := len(cfg.Collections) + len(cfg.GiftCollections)
+	cacheSize := len(cfg.Collections) + len(cfg.GiftCollections) + len(cfg.CollectionPriceThreshold) + len(cfg.CollectionPriceThresholdByAttributes)
 	ownerDeny := make(map[string]struct{}, len(cfg.OwnerBlackList))
 	for _, owner := range cfg.OwnerBlackList {
 		ownerDeny[owner] = struct{}{}
@@ -134,15 +134,6 @@ func (m *Monitor) InitWallet(ctx context.Context) error {
 
 func (m *Monitor) refreshFloorPrices(ctx context.Context) error {
 	for _, addr := range m.watchedCollections() {
-		if thresholdTON, ok := m.cfg.CollectionPriceThreshold[addr]; ok {
-			slog.Info("Skipping floor price refresh due to price threshold config",
-				"collection", addr,
-				"thresholdTon", thresholdTON,
-				"thresholdNano", tonToNano(thresholdTON),
-			)
-			continue
-		}
-
 		floorPriceNano, err := m.fetchCollectionFloorPriceNano(ctx, addr)
 		if err != nil {
 			slog.Warn("Failed to fetch floor price", "collection", addr, "err", err)
@@ -199,12 +190,13 @@ func (m *Monitor) bootstrapGiftCursor(ctx context.Context) (string, error) {
 }
 
 func (m *Monitor) bootstrapNftCursors(ctx context.Context) (map[string]string, error) {
-	cursors := make(map[string]string, len(m.cfg.Collections))
+	collections := m.nftWatchedCollections()
+	cursors := make(map[string]string, len(collections))
 	if !m.hasCollections() {
 		return cursors, nil
 	}
 
-	for collectionAddress := range m.cfg.Collections {
+	for _, collectionAddress := range collections {
 		cursor, err := m.bootstrapNftCursor(ctx, collectionAddress)
 		if err != nil {
 			return nil, err
@@ -339,7 +331,9 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 	}
 
 	discountPct, watched := discountThreshold(watchedCollections, event.CollectionAddress)
-	if !watched {
+	attributeThresholds, hasAttributeThreshold := m.cfg.CollectionPriceThresholdByAttributes[event.CollectionAddress]
+	thresholdTON, hasPriceThreshold := m.cfg.CollectionPriceThreshold[event.CollectionAddress]
+	if !watched && !hasPriceThreshold && !hasAttributeThreshold {
 		return
 	}
 
@@ -372,12 +366,43 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		return
 	}
 
-	thresholdTON, hasPriceThreshold := m.cfg.CollectionPriceThreshold[event.CollectionAddress]
-	threshold := int64(0)
-	if hasPriceThreshold {
+	var (
+		threshold       int64
+		thresholdSet    bool
+		thresholdSource string
+	)
+	if hasAttributeThreshold {
+		attributeThreshold, matched, err := m.calculateThresholdByAttribute(ctx, event.Address, attributeThresholds)
+		if err != nil {
+			slog.Warn("Failed to calculate attribute price threshold",
+				"nft", event.Address,
+				"collection", event.CollectionAddress,
+				"err", err,
+			)
+			return
+		}
+		if matched {
+			threshold = attributeThreshold
+			thresholdSet = true
+			thresholdSource = "attribute"
+		}
+	}
+	if !thresholdSet && hasPriceThreshold {
 		threshold = tonToNano(thresholdTON)
-	} else {
+		thresholdSet = true
+		thresholdSource = "fixed"
+	}
+	if !thresholdSet && watched {
 		threshold = calculateThreshold(floorPrice, discountPct)
+		thresholdSet = true
+		thresholdSource = "discount"
+	}
+	if !thresholdSet {
+		slog.Debug("Skipping NFT because no attribute threshold matched",
+			"nft", event.Address,
+			"collection", event.CollectionAddress,
+		)
+		return
 	}
 	slog.Debug("Checking NFT",
 		"nft", event.Address,
@@ -385,6 +410,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		"price", price,
 		"floor", floorPrice,
 		"threshold", threshold,
+		"thresholdSource", thresholdSource,
 	)
 
 	if price > threshold {
@@ -507,6 +533,23 @@ func (m *Monitor) fetchNft(ctx context.Context, nftAddress string) (*getgemsapi.
 	}
 
 	return resp, nil
+}
+
+func (m *Monitor) calculateThresholdByAttribute(
+	ctx context.Context,
+	nftAddress string,
+	thresholds []config.AttributePriceThreshold,
+) (int64, bool, error) {
+	nft, err := m.fetchNft(ctx, nftAddress)
+	if err != nil {
+		return 0, false, fmt.Errorf("fetch NFT attributes: %w", err)
+	}
+	if nft.JSON200.Response.Attributes == nil {
+		return 0, false, nil
+	}
+
+	threshold, matched := matchAttributeThreshold(*nft.JSON200.Response.Attributes, thresholds)
+	return threshold, matched, nil
 }
 
 func (m *Monitor) createBuyTx(ctx context.Context, nftAddress, version string, price int64, isOffchain bool) (*getgemsapi.V1BuyNftFixPriceResp, error) {
@@ -1142,7 +1185,9 @@ func (m *Monitor) sendSignedTransaction(
 }
 
 func (m *Monitor) hasCollections() bool {
-	return len(m.cfg.Collections) > 0
+	return len(m.cfg.Collections) > 0 ||
+		len(m.cfg.CollectionPriceThreshold) > 0 ||
+		len(m.cfg.CollectionPriceThresholdByAttributes) > 0
 }
 
 func (m *Monitor) hasGiftCollections() bool {
@@ -1164,8 +1209,9 @@ func (m *Monitor) hasRoyaltyCollection(collectionAddress string) bool {
 }
 
 func (m *Monitor) watchedCollections() []string {
-	seen := make(map[string]struct{}, len(m.cfg.Collections)+len(m.cfg.GiftCollections))
-	collections := make([]string, 0, len(m.cfg.Collections)+len(m.cfg.GiftCollections))
+	capacity := len(m.cfg.Collections) + len(m.cfg.GiftCollections) + len(m.cfg.CollectionPriceThreshold) + len(m.cfg.CollectionPriceThresholdByAttributes)
+	seen := make(map[string]struct{}, capacity)
+	collections := make([]string, 0, capacity)
 
 	appendUnique := func(addr string) {
 		if _, ok := seen[addr]; ok {
@@ -1178,7 +1224,39 @@ func (m *Monitor) watchedCollections() []string {
 	for addr := range m.cfg.Collections {
 		appendUnique(addr)
 	}
+	for addr := range m.cfg.CollectionPriceThreshold {
+		appendUnique(addr)
+	}
+	for addr := range m.cfg.CollectionPriceThresholdByAttributes {
+		appendUnique(addr)
+	}
 	for addr := range m.cfg.GiftCollections {
+		appendUnique(addr)
+	}
+
+	return collections
+}
+
+func (m *Monitor) nftWatchedCollections() []string {
+	capacity := len(m.cfg.Collections) + len(m.cfg.CollectionPriceThreshold) + len(m.cfg.CollectionPriceThresholdByAttributes)
+	seen := make(map[string]struct{}, capacity)
+	collections := make([]string, 0, capacity)
+
+	appendUnique := func(addr string) {
+		if _, ok := seen[addr]; ok {
+			return
+		}
+		seen[addr] = struct{}{}
+		collections = append(collections, addr)
+	}
+
+	for addr := range m.cfg.Collections {
+		appendUnique(addr)
+	}
+	for addr := range m.cfg.CollectionPriceThreshold {
+		appendUnique(addr)
+	}
+	for addr := range m.cfg.CollectionPriceThresholdByAttributes {
 		appendUnique(addr)
 	}
 

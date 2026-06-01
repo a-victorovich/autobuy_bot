@@ -1,6 +1,11 @@
 package monitor
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/yourorg/nft-scanner/internal/config"
+	getgemsapi "github.com/yourorg/nft-scanner/internal/getgems/openapi"
+)
 
 func TestCalculateThreshold(t *testing.T) {
 	tests := []struct {
@@ -48,5 +53,43 @@ func TestCalculateThreshold(t *testing.T) {
 				t.Fatalf("calculateThreshold(%v, %v) = %v, want %v", tt.floorPrice, tt.discountPct, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMatchAttributeThreshold(t *testing.T) {
+	attributes := []getgemsapi.NftItemAttribute{
+		{TraitType: "Background", Value: "Blue"},
+		{TraitType: "Hat", Value: "Cap"},
+	}
+	thresholds := []config.AttributePriceThreshold{
+		{TraitType: "Background", Value: "Blue", Price: 1.5},
+		{TraitType: "Hat", Value: "Cap", Price: 2.25},
+		{TraitType: "Hat", Value: "Crown", Price: 10},
+	}
+
+	got, matched := matchAttributeThreshold(attributes, thresholds)
+	if !matched {
+		t.Fatal("matchAttributeThreshold matched = false, want true")
+	}
+	want := tonToNano(2.25)
+	if got != want {
+		t.Fatalf("matchAttributeThreshold() = %v, want %v", got, want)
+	}
+}
+
+func TestMatchAttributeThresholdNoMatch(t *testing.T) {
+	attributes := []getgemsapi.NftItemAttribute{
+		{TraitType: "Background", Value: "Blue"},
+	}
+	thresholds := []config.AttributePriceThreshold{
+		{TraitType: "Background", Value: "Red", Price: 1.5},
+	}
+
+	got, matched := matchAttributeThreshold(attributes, thresholds)
+	if matched {
+		t.Fatal("matchAttributeThreshold matched = true, want false")
+	}
+	if got != 0 {
+		t.Fatalf("matchAttributeThreshold() = %v, want 0", got)
 	}
 }

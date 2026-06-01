@@ -73,6 +73,12 @@ collections:
 
 gift_collections:
   "EQD...giftAddress1": 10  # Same threshold logic, but for /v1/nfts/history/gifts
+
+collection_price_threshold_by_attributes:
+  "EQD...address1":
+    - traitType: "Background"
+      value: "Blue"
+      price: 3.5
 ```
 
 ## Running in production

@@ -39,6 +39,16 @@ collection_price_threshold:
   # collectionAddress: fixed alert threshold in TON (overrides discount-based threshold)
   "EQD...collectionAddress1": 2.5
 
+collection_price_threshold_by_attributes:
+  # collectionAddress: per-attribute fixed alert thresholds in TON
+  "EQD...collectionAddress1":
+    - traitType: "Background"
+      value: "Blue"
+      price: 3.5
+    - traitType: "Hat"
+      value: "Cap"
+      price: 4.0
+
 royalty_collections:
   # collectionAddress list where OmitRoyalty is false
   - "EQD...collectionAddress1"

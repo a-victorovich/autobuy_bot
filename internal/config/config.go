@@ -21,16 +21,23 @@ const (
 
 // Config is the root configuration structure loaded from config.yaml.
 type Config struct {
-	Telegram                 TelegramConfig     `yaml:"telegram"`
-	Getgems                  GetgemsConfig      `yaml:"getgems"`
-	Toncenter                ToncenterConfig    `yaml:"toncenter"`
-	Wallet                   WalletConfig       `yaml:"wallet"`
-	Scanner                  ScannerConfig      `yaml:"scanner"`
-	Collections              map[string]float64 `yaml:"collections"`                // collectionAddress -> discount percent
-	GiftCollections          map[string]float64 `yaml:"gift_collections"`           // gift collectionAddress -> discount percent
-	CollectionPriceThreshold map[string]float64 `yaml:"collection_price_threshold"` // collectionAddress -> price in TON
-	RoyaltyCollections       []string           `yaml:"royalty_collections"`
-	OwnerBlackList           []string           `yaml:"owner_black_list"`
+	Telegram                             TelegramConfig                       `yaml:"telegram"`
+	Getgems                              GetgemsConfig                        `yaml:"getgems"`
+	Toncenter                            ToncenterConfig                      `yaml:"toncenter"`
+	Wallet                               WalletConfig                         `yaml:"wallet"`
+	Scanner                              ScannerConfig                        `yaml:"scanner"`
+	Collections                          map[string]float64                   `yaml:"collections"`                              // collectionAddress -> discount percent
+	GiftCollections                      map[string]float64                   `yaml:"gift_collections"`                         // gift collectionAddress -> discount percent
+	CollectionPriceThreshold             map[string]float64                   `yaml:"collection_price_threshold"`               // collectionAddress -> price in TON
+	CollectionPriceThresholdByAttributes map[string][]AttributePriceThreshold `yaml:"collection_price_threshold_by_attributes"` // collectionAddress -> attribute price thresholds in TON
+	RoyaltyCollections                   []string                             `yaml:"royalty_collections"`
+	OwnerBlackList                       []string                             `yaml:"owner_black_list"`
+}
+
+type AttributePriceThreshold struct {
+	TraitType string  `yaml:"traitType" json:"traitType"`
+	Value     string  `yaml:"value" json:"value"`
+	Price     float64 `yaml:"price" json:"price"`
 }
 
 // GetgemsConfig holds credentials for the Getgems public API.
@@ -136,8 +143,11 @@ func (c *Config) validate(configPath string) error {
 	if c.Wallet.Network != "" && c.Wallet.Network != "mainnet" && c.Wallet.Network != "testnet" {
 		return fmt.Errorf("wallet.network must be either \"mainnet\" or \"testnet\"")
 	}
-	if len(c.Collections) == 0 && len(c.GiftCollections) == 0 {
-		return fmt.Errorf("at least one of collections or gift_collections must be configured")
+	if len(c.Collections) == 0 &&
+		len(c.GiftCollections) == 0 &&
+		len(c.CollectionPriceThreshold) == 0 &&
+		len(c.CollectionPriceThresholdByAttributes) == 0 {
+		return fmt.Errorf("at least one of collections, gift_collections, collection_price_threshold, or collection_price_threshold_by_attributes must be configured")
 	}
 	switch c.Scanner.Resale.Type {
 	case "", "fix_price":
@@ -203,6 +213,9 @@ func (c *Config) validate(configPath string) error {
 	if err := validateCollectionPriceThreshold(c.CollectionPriceThreshold); err != nil {
 		return err
 	}
+	if err := validateCollectionPriceThresholdByAttributes(c.CollectionPriceThresholdByAttributes); err != nil {
+		return err
+	}
 	if err := validateCollectionList("royalty_collections", c.RoyaltyCollections); err != nil {
 		return err
 	}
@@ -232,6 +245,26 @@ func validateCollectionPriceThreshold(thresholds map[string]float64) error {
 		}
 		if price < 0 {
 			return fmt.Errorf("collection_price_threshold %q: price must be non-negative, got %v", addr, price)
+		}
+	}
+	return nil
+}
+
+func validateCollectionPriceThresholdByAttributes(thresholds map[string][]AttributePriceThreshold) error {
+	for addr, entries := range thresholds {
+		if addr == "" {
+			return fmt.Errorf("collection_price_threshold_by_attributes contains an empty collection address")
+		}
+		for i, entry := range entries {
+			if entry.TraitType == "" {
+				return fmt.Errorf("collection_price_threshold_by_attributes %q[%d]: traitType must be non-empty", addr, i)
+			}
+			if entry.Value == "" {
+				return fmt.Errorf("collection_price_threshold_by_attributes %q[%d]: value must be non-empty", addr, i)
+			}
+			if entry.Price < 0 {
+				return fmt.Errorf("collection_price_threshold_by_attributes %q[%d]: price must be non-negative, got %v", addr, i, entry.Price)
+			}
 		}
 	}
 	return nil
