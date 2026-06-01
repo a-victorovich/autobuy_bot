@@ -346,14 +346,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		return
 	}
 
-	floorPrice, ok := m.floorPrice(event.CollectionAddress)
-	if !ok || floorPrice <= 0 {
-		slog.Warn("No floor price available for",
-			"collection", event.CollectionAddress,
-		)
-		return
-	}
-
+	floorPrice, _ :=  strconv.ParseInt("0", 10, 64)
 	price, err := strconv.ParseInt(event.PriceNano, 10, 64)
 	if err != nil {
 		slog.Warn("Failed to parse sale price nano",
@@ -393,6 +386,14 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		thresholdSource = "fixed"
 	}
 	if !thresholdSet && watched {
+		floorPrice, ok := m.floorPrice(event.CollectionAddress)
+		if !ok || floorPrice <= 0 {
+			slog.Warn("No floor price available for",
+				"collection", event.CollectionAddress,
+			)
+			return
+		}
+
 		threshold = calculateThreshold(floorPrice, discountPct)
 		thresholdSet = true
 		thresholdSource = "discount"
@@ -700,6 +701,7 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 
 	m.balance -= requiredAmount
 
+	// here
 	newPrice := calculateThreshold(floorPrice, m.resaleDiscountPct()) // fixme for falling price
 	ready, err := m.waitBuyTransactionReady(ctx, event, saleVersion, buyTx)
 	if err != nil {
@@ -716,7 +718,11 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 			)
 		}
 
-		m.tryPutUpForSale(ctx, event, newPrice)
+		if !m.cfg.Scanner.ResaleDisabled {
+			m.tryPutUpForSale(ctx, event, newPrice)
+		} else {
+			slog.Info("Skip put up for sale")
+		}
 	}
 
 	m.updateWalletBalanceAndSeqno(ctx)

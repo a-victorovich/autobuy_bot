@@ -13,6 +13,7 @@ scanner:
   use_history_version: false # true = use sale version from history event when available
   resale_discount_pct: 0    # Optional; sale price for recently bought NFT = floorPrice * (1 - pct/100)
   max_price_ton: 5
+  resale_disabled: false
 
 getgems:
   api_key: "YOUR_GETGEMS_API_KEY_HERE"
