@@ -12,6 +12,7 @@ func formatSignalAlert(
 	getgemsWebURL string, event listingEvent,
 	floorPrice, salePrice int64,
 	actualDiscount, configuredPct float64,
+	thresholdSource string,
 ) string {
 	nftURL := fmt.Sprintf(
 		"%s/nft/%s",
@@ -24,13 +25,14 @@ func formatSignalAlert(
 			"📦 *Collection:* `%s`\n"+
 			"🎯 *NFT:* `%s`\n\n"+
 			"💰 *Sale Price:* `%.2f TON`\n"+
-			"📊 *Floor Price:* `%.2f TON`\n"+
+			"📊 *Floor Price (or threshold):* `%.2f TON (Type: %s)`\n"+
 			"📉 *Discount:* `%.2f%%` _(threshold: %.0f%%)_\n\n"+
 			"🔗 [Open on Getgems](%s)",
 		event.CollectionAddress,
 		event.Address,
 		tonFromNano(salePrice),
 		tonFromNano(floorPrice),
+		thresholdSource,
 		actualDiscount,
 		configuredPct,
 		nftURL,

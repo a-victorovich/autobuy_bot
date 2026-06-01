@@ -418,13 +418,17 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		return
 	}
 
-	discount := (1.0 - float64(price)/float64(floorPrice)) * 100.0
-	if err := m.notifyMatchedListing(ctx, event, floorPrice, price, discount, discountPct); err != nil {
+	priceForDiscount := floorPrice
+	if thresholdSource == "attribute" || thresholdSource == "fixed"  {
+		priceForDiscount = threshold
+	}
+	discount := (1.0 - float64(price)/float64(priceForDiscount)) * 100.0
+	if err := m.notifyMatchedListing(ctx, event, priceForDiscount, price, discount, discountPct, thresholdSource); err != nil {
 		slog.Error("Failed to send Telegram alert", "err", err)
 		return
 	}
 
-	m.tryPurchaseMatchedListing(ctx, event, floorPrice, price)
+	m.tryPurchaseMatchedListing(ctx, event, priceForDiscount, price)
 }
 
 func (m *Monitor) setRunAt(runAt time.Time) {
@@ -618,6 +622,7 @@ func (m *Monitor) notifyMatchedListing(
 	event listingEvent,
 	floorPrice, salePrice int64,
 	actualDiscount, configuredPct float64,
+	thresholdSource string,
 ) error {
 	slog.Info("Signal found",
 		"nft", event.Address,
@@ -626,7 +631,7 @@ func (m *Monitor) notifyMatchedListing(
 		"discountPct", fmt.Sprintf("%.2f%%", actualDiscount),
 	)
 
-	message := formatSignalAlert(m.cfg.Getgems.WebURL, event, floorPrice, salePrice, actualDiscount, configuredPct)
+	message := formatSignalAlert(m.cfg.Getgems.WebURL, event, floorPrice, salePrice, actualDiscount, configuredPct, thresholdSource)
 	return m.notifier.SendSignal(ctx, message)
 }
 
@@ -701,7 +706,6 @@ func (m *Monitor) tryPurchaseMatchedListing(ctx context.Context, event listingEv
 
 	m.balance -= requiredAmount
 
-	// here
 	newPrice := calculateThreshold(floorPrice, m.resaleDiscountPct()) // fixme for falling price
 	ready, err := m.waitBuyTransactionReady(ctx, event, saleVersion, buyTx)
 	if err != nil {
