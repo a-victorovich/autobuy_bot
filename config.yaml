@@ -9,6 +9,7 @@ wallet:
 
 scanner:
   poll_interval_seconds: 30
+  # worker_pool_size: 8      # Optional; omitted = runtime.GOMAXPROCS(0) * 2
   purchases_enabled: false  # false = only Telegram alerts, true = also create buy transaction data
   use_history_version: false # true = use sale version from history event when available
   resale_discount_pct: 0    # Optional; sale price for recently bought NFT = floorPrice * (1 - pct/100)

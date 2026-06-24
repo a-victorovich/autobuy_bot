@@ -71,6 +71,7 @@ type WalletConfig struct {
 // ScannerConfig holds polling and behaviour settings.
 type ScannerConfig struct {
 	PollIntervalSeconds     int      `yaml:"poll_interval_seconds"`
+	WorkerPoolSize          *int     `yaml:"worker_pool_size"`
 	PurchasesEnabled        bool     `yaml:"purchases_enabled"`
 	ResaleDisabled          bool     `yaml:"resale_disabled"`
 	UseHistoryVersion       bool     `yaml:"use_history_version"`
@@ -149,6 +150,9 @@ func (c *Config) validate(configPath string) error {
 		len(c.CollectionPriceThreshold) == 0 &&
 		len(c.CollectionPriceThresholdByAttributes) == 0 {
 		return fmt.Errorf("at least one of collections, gift_collections, collection_price_threshold, or collection_price_threshold_by_attributes must be configured")
+	}
+	if c.Scanner.WorkerPoolSize != nil && *c.Scanner.WorkerPoolSize < 1 {
+		return fmt.Errorf("scanner.worker_pool_size must be at least 1, got %d", *c.Scanner.WorkerPoolSize)
 	}
 	switch c.Scanner.Resale.Type {
 	case "", "fix_price":

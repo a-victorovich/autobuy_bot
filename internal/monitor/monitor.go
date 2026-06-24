@@ -280,6 +280,9 @@ func (m *Monitor) processItemsWithWorkerPool(
 	}
 
 	workers := runtime.GOMAXPROCS(0) * 2
+	if m.cfg.Scanner.WorkerPoolSize != nil {
+		workers = *m.cfg.Scanner.WorkerPoolSize
+	}
 	if workers < 1 {
 		workers = 1
 	}
@@ -346,7 +349,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 		return
 	}
 
-	floorPrice, _ :=  strconv.ParseInt("0", 10, 64)
+	floorPrice, _ := strconv.ParseInt("0", 10, 64)
 	price, err := strconv.ParseInt(event.PriceNano, 10, 64)
 	if err != nil {
 		slog.Warn("Failed to parse sale price nano",
@@ -419,7 +422,7 @@ func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistor
 	}
 
 	priceForDiscount := floorPrice
-	if thresholdSource == "attribute" || thresholdSource == "fixed"  {
+	if thresholdSource == "attribute" || thresholdSource == "fixed" {
 		priceForDiscount = threshold
 	}
 	discount := (1.0 - float64(price)/float64(priceForDiscount)) * 100.0
