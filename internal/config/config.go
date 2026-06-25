@@ -38,7 +38,7 @@ type Config struct {
 	CollectionPriceThresholdByAttributes map[string][]AttributePriceThreshold `yaml:"collection_price_threshold_by_attributes"` // collectionAddress -> attribute price thresholds in TON
 	RoyaltyCollections                   []string                             `yaml:"royalty_collections"`
 	OwnerBlackList                       []string                             `yaml:"owner_black_list"`
-	UseAuctions                          UseAuctions                          `yaml:"useAuctions"`
+	UseAuctions                          UseAuctions                          `yaml:"use_auctions"`
 }
 
 type AttributePriceThreshold struct {

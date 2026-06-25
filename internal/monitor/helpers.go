@@ -98,6 +98,33 @@ func matchAttributeThreshold(
 	return tonToNano(maxPrice), true
 }
 
+func validateNftAuctionDetails(nft *getgemsapi.V1GetNftByAddressResp) (bool, string, string, getgemsapi.Auction) {
+	if nft == nil || nft.JSON200 == nil || !nft.JSON200.Success || nft.JSON200.Response == nil {
+		return false, "", "Response code is not 200", getgemsapi.Auction{}
+	}
+
+	if nft.JSON200.Response.Sale == nil {
+		return false, "", "Response does not have Sale field", getgemsapi.Auction{}
+	}
+
+	sale, err := nft.JSON200.Response.Sale.AsAuction()
+	if err != nil {
+		return false, "", "Response has invalid Sale field", getgemsapi.Auction{}
+	}
+
+	if sale.Type != getgemsapi.AuctionTypeAuction {
+		return false, sale.Version, fmt.Sprintf("Type is not Auction: %v", sale.Type), sale
+	}
+	if string(sale.Currency) != "TON" {
+		return false, sale.Version, fmt.Sprintf("Currency mismatch: %v", sale.Currency), sale
+	}
+	if _, ok := allowedKinds[nft.JSON200.Response.Kind]; !ok {
+		return false, sale.Version, fmt.Sprintf("Invalid type: %v", nft.JSON200.Response.Kind), sale
+	}
+
+	return true, sale.Version, "", sale
+}
+
 func validateNftSaleDetails(event listingEvent, nft *getgemsapi.V1GetNftByAddressResp) (bool, string, string) {
 	if nft == nil || nft.JSON200 == nil || !nft.JSON200.Success || nft.JSON200.Response == nil {
 		return false, "", "Response code is not 200"
