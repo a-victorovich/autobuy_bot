@@ -192,3 +192,23 @@ func formatFailedCreateTx(nftAddress string, errorMsg string) string {
 		errorMsg,
 	)
 }
+
+func formatNewAuction(
+	getgemsWebURL string, event auctionEvent,
+) string {
+	nftURL := fmt.Sprintf(
+		"%s/nft/%s",
+		strings.TrimRight(getgemsWebURL, "/"),
+		url.PathEscape(event.Address),
+	)
+
+	return fmt.Sprintf(
+		"🚨 *New Auction*\n\n"+
+			"📦 *Collection:* `%s`\n"+
+			"🎯 *NFT:* `%s`\n\n"+
+			"🔗 [Open on Getgems](%s)",
+		event.CollectionAddress,
+		event.Address,
+		nftURL,
+	)
+}

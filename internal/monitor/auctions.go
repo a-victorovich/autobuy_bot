@@ -57,6 +57,15 @@ func (m *Monitor) processAuctionItem(ctx context.Context, event auctionEvent) {
 		return
 	}
 
+	message := formatNewAuction(m.cfg.Getgems.WebURL, event)
+	if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
+		slog.Error("Failed to send Telegram newAuction message",
+			"nft", event.Address,
+			"err", notifyErr,
+		)
+	}
+	
+
 	slog.InfoContext(ctx, "NFT auction details validated",
 		"nft", event.Address,
 		"sale_version", saleVersion,
