@@ -945,7 +945,7 @@ func (m *Monitor) putUpForSaleAttempt(
 		"attempt", attempt,
 	)
 
-	if _, err := m.sendSignedTransaction(ctx, event, saleVersion, saleTx.JSON200, false); err != nil {
+	if _, err := m.sendSignedTransaction(ctx, event, saleVersion, saleTx.JSON200, false, false); err != nil {
 		slog.Error("Failed to send signed sale transaction",
 			"nft", event.Address,
 			"attempt", attempt,
@@ -1140,7 +1140,7 @@ func (m *Monitor) sendSignedBuyTransaction(
 	saleVersion string,
 	buyTx *getgemsapi.V1BuyNftFixPriceResp,
 ) (string, error) {
-	return m.sendSignedTransaction(ctx, event, saleVersion, buyTx.JSON200, true)
+	return m.sendSignedTransaction(ctx, event, saleVersion, buyTx.JSON200, true, false)
 }
 
 func (m *Monitor) sendSignedTransaction(
@@ -1149,6 +1149,7 @@ func (m *Monitor) sendSignedTransaction(
 	saleVersion string,
 	txResp *getgemsapi.TransactionResponse,
 	notifyTelegram bool,
+	isAuction bool,
 ) (string, error) {
 	signedBOC, err := m.buildSignedTxBoc(ctx, m.seqno, false, txResp)
 	if err != nil {
@@ -1164,6 +1165,9 @@ func (m *Monitor) sendSignedTransaction(
 
 	if notifyTelegram == true {
 		message := formatTxResult(event.Address, saleVersion, sendBocResp, err)
+		if isAuction {
+			message = formatAuctionTxResult(event.Address, saleVersion, sendBocResp, err)
+		}
 		// slog.Info("Message", message)
 		if notifyErr := m.notifier.SendSignal(ctx, message); notifyErr != nil {
 			slog.Error("Failed to send Telegram transaction result",

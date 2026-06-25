@@ -58,11 +58,26 @@ func formatTxResult(
 	nftAddress, saleVersion string,
 	resp *toncenterapi.SendBocReturnHashPostResp, sendErr error,
 ) string {
+	return formatTxResultWithTitle("⚠️ *Attempt to buy* ⚠️", nftAddress, saleVersion, resp, sendErr)
+}
+
+func formatAuctionTxResult(
+	nftAddress, saleVersion string,
+	resp *toncenterapi.SendBocReturnHashPostResp, sendErr error,
+) string {
+	return formatTxResultWithTitle("⚠️ *Made bid on auction* ⚠️", nftAddress, saleVersion, resp, sendErr)
+}
+
+func formatTxResultWithTitle(
+	title, nftAddress, saleVersion string,
+	resp *toncenterapi.SendBocReturnHashPostResp, sendErr error,
+) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf(
-		"⚠️ *Attempt to buy* ⚠️\n\n"+
+		"%s\n\n"+
 			"*NFT:* `%s`\n"+
 			"*Version:* `%s`\n",
+		title,
 		nftAddress,
 		saleVersion,
 	))

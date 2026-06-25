@@ -63,7 +63,7 @@ func (m *Monitor) processAuctionItem(ctx context.Context, event auctionEvent) {
 		"min_bid", sale.MinBid,
 		"finish_at", sale.FinishAt,
 	)
- 
+
 	var (
 		threshold       int64
 		thresholdSet    bool
@@ -165,7 +165,7 @@ func (m *Monitor) processAuctionItem(ctx context.Context, event auctionEvent) {
 		Address:           event.Address,
 		CollectionAddress: event.CollectionAddress,
 		Owner:             event.Owner,
-	}, saleVersion, resp.JSON200, true); err != nil {
+	}, saleVersion, resp.JSON200, true, true); err != nil {
 		slog.Error("Failed to send signed auction bid transaction",
 			"nft", event.Address,
 			"hash", hash,
