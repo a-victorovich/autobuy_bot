@@ -131,6 +131,13 @@ func (m *Monitor) processAuctionItem(ctx context.Context, event auctionEvent) {
 		return
 	}
 
+
+	// temp limitation
+	if threshold > 30_000_000_000 {
+		slog.WarnContext(ctx, "Too big bid", "nft", event.Address)
+		return
+	}
+
 	requiredAmount := threshold + 100_000_000
 	if m.balance < requiredAmount {
 		slog.Error("Wallet balance is too small",
