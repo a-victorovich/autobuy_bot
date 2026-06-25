@@ -19,6 +19,12 @@ const (
 	DefaultWalletNetwork    = "mainnet"
 )
 
+type UseAuctions string
+
+const (
+	UseAuctionsMakeBidThresholdPrice UseAuctions = "makeBidThresholdPrice"
+)
+
 // Config is the root configuration structure loaded from config.yaml.
 type Config struct {
 	Telegram                             TelegramConfig                       `yaml:"telegram"`
@@ -32,6 +38,7 @@ type Config struct {
 	CollectionPriceThresholdByAttributes map[string][]AttributePriceThreshold `yaml:"collection_price_threshold_by_attributes"` // collectionAddress -> attribute price thresholds in TON
 	RoyaltyCollections                   []string                             `yaml:"royalty_collections"`
 	OwnerBlackList                       []string                             `yaml:"owner_black_list"`
+	UseAuctions                          UseAuctions                          `yaml:"useAuctions"`
 }
 
 type AttributePriceThreshold struct {
@@ -144,6 +151,9 @@ func (c *Config) validate(configPath string) error {
 	}
 	if c.Wallet.Network != "" && c.Wallet.Network != "mainnet" && c.Wallet.Network != "testnet" {
 		return fmt.Errorf("wallet.network must be either \"mainnet\" or \"testnet\"")
+	}
+	if c.UseAuctions != "" && c.UseAuctions != UseAuctionsMakeBidThresholdPrice {
+		return fmt.Errorf("useAuctions must be %q, got %q", UseAuctionsMakeBidThresholdPrice, c.UseAuctions)
 	}
 	if len(c.Collections) == 0 &&
 		len(c.GiftCollections) == 0 &&

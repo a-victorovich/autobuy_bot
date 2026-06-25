@@ -158,10 +158,15 @@ func giftHistoryParams(cursor string, reverse bool, limit int) *getgemsapi.V1Get
 	return params
 }
 
-func collectionHistoryParams(cursor string, reverse bool, limit int) *getgemsapi.V1GetNftCollectionHistoryParams {
+func collectionHistoryParams(cursor string, reverse bool, limit int, useAuctions config.UseAuctions) *getgemsapi.V1GetNftCollectionHistoryParams {
+	types := []getgemsapi.HistoryType{getgemsapi.PutUpForSale}
+	if useAuctions == config.UseAuctionsMakeBidThresholdPrice {
+		types = append(types, getgemsapi.PutUpForAuction)
+	}
+
 	params := &getgemsapi.V1GetNftCollectionHistoryParams{
 		Reverse: &reverse,
-		Types:   &[]getgemsapi.HistoryType{getgemsapi.PutUpForSale},
+		Types:   &types,
 	}
 	if cursor != "" {
 		after := getgemsapi.ParametersAfterParameter(cursor)

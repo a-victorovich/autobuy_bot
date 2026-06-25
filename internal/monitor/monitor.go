@@ -320,6 +320,13 @@ func (m *Monitor) processItemsWithWorkerPool(
 func (m *Monitor) processItem(ctx context.Context, item getgemsapi.NftItemHistoryItem, watchedCollections map[string]float64) {
 	defer m.setRunAt(time.Now())
 
+	if m.cfg.UseAuctions == config.UseAuctionsMakeBidThresholdPrice {
+		if event, ok := decodeAuctionEvent(item); ok {
+			m.processAuctionItem(ctx, event)
+			return
+		}
+	}
+
 	event, ok := decodeListingEvent(item)
 	if !ok {
 		return
@@ -520,7 +527,7 @@ func (m *Monitor) fetchGiftHistory(ctx context.Context, cursor string, reverse b
 }
 
 func (m *Monitor) fetchCollectionHistory(ctx context.Context, collectionAddress, cursor string, reverse bool, limit int) (historyPage, error) {
-	resp, err := m.api.V1GetNftCollectionHistoryWithResponse(ctx, collectionAddress, collectionHistoryParams(cursor, reverse, limit))
+	resp, err := m.api.V1GetNftCollectionHistoryWithResponse(ctx, collectionAddress, collectionHistoryParams(cursor, reverse, limit, m.cfg.UseAuctions))
 	if err != nil {
 		return historyPage{}, err
 	}

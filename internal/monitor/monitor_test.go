@@ -93,3 +93,45 @@ func TestMatchAttributeThresholdNoMatch(t *testing.T) {
 		t.Fatalf("matchAttributeThreshold() = %v, want 0", got)
 	}
 }
+
+func TestCollectionHistoryParamsIncludesAuctionsWhenEnabled(t *testing.T) {
+	params := collectionHistoryParams("", false, 0, config.UseAuctionsMakeBidThresholdPrice)
+	if params.Types == nil {
+		t.Fatal("collectionHistoryParams().Types = nil, want sale and auction types")
+	}
+
+	got := *params.Types
+	want := []getgemsapi.HistoryType{getgemsapi.PutUpForSale, getgemsapi.PutUpForAuction}
+	if len(got) != len(want) {
+		t.Fatalf("collectionHistoryParams().Types len = %d, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("collectionHistoryParams().Types[%d] = %v, want %v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestDecodeAuctionEvent(t *testing.T) {
+	collectionAddress := "collection"
+	owner := "owner"
+	typeData := getgemsapi.NftItemHistoryItem_TypeData{}
+	if err := typeData.FromHistoryTypePutUpForAuction(getgemsapi.HistoryTypePutUpForAuction{
+		Owner: &owner,
+		Type:  getgemsapi.PutUpForAuction,
+	}); err != nil {
+		t.Fatalf("FromHistoryTypePutUpForAuction() error = %v", err)
+	}
+
+	event, ok := decodeAuctionEvent(getgemsapi.NftItemHistoryItem{
+		Address:           "nft",
+		CollectionAddress: &collectionAddress,
+		TypeData:          typeData,
+	})
+	if !ok {
+		t.Fatal("decodeAuctionEvent() ok = false, want true")
+	}
+	if event.Address != "nft" || event.CollectionAddress != collectionAddress || event.Owner != owner {
+		t.Fatalf("decodeAuctionEvent() = %+v", event)
+	}
+}

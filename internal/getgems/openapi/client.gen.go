@@ -88,6 +88,7 @@ const (
 
 // Defines values for HistoryType.
 const (
+	BundleSale      HistoryType = "bundleSale"
 	Burn            HistoryType = "burn"
 	CancelAuction   HistoryType = "cancelAuction"
 	CancelSale      HistoryType = "cancelSale"
@@ -165,6 +166,22 @@ const (
 	NOUPDATES NftItemsUpdateResponseResponse1Type = "NO_UPDATES"
 )
 
+// Defines values for PaymentStatus.
+const (
+	PaymentStatusDeclined  PaymentStatus = "declined"
+	PaymentStatusExecuting PaymentStatus = "executing"
+	PaymentStatusFailed    PaymentStatus = "failed"
+	PaymentStatusPending   PaymentStatus = "pending"
+	PaymentStatusSuccess   PaymentStatus = "success"
+)
+
+// Defines values for PaymentType.
+const (
+	Premium PaymentType = "premium"
+	Stars   PaymentType = "stars"
+	Ton     PaymentType = "ton"
+)
+
 // Defines values for ReindexResponseResponseStatus.
 const (
 	ReindexResponseResponseStatusFailed  ReindexResponseResponseStatus = "failed"
@@ -192,11 +209,11 @@ const (
 
 // Defines values for UpdateDataStatus.
 const (
-	InQueue     UpdateDataStatus = "in_queue"
-	JustCreated UpdateDataStatus = "just_created"
-	Problem     UpdateDataStatus = "problem"
-	Ready       UpdateDataStatus = "ready"
-	Updating    UpdateDataStatus = "updating"
+	UpdateDataStatusInQueue     UpdateDataStatus = "in_queue"
+	UpdateDataStatusJustCreated UpdateDataStatus = "just_created"
+	UpdateDataStatusProblem     UpdateDataStatus = "problem"
+	UpdateDataStatusReady       UpdateDataStatus = "ready"
+	UpdateDataStatusUpdating    UpdateDataStatus = "updating"
 )
 
 // Defines values for V1UserSearchParamsSaleType.
@@ -238,6 +255,17 @@ type AddCNFTToCollectionResponse struct {
 		Items []CNFTItem `json:"items"`
 	} `json:"response"`
 	Success bool `json:"success"`
+}
+
+// ApiFragmentApiCreatePaymentRequest defines model for Api.FragmentApi.CreatePaymentRequest.
+type ApiFragmentApiCreatePaymentRequest struct {
+	Amount float32 `json:"amount"`
+
+	// Payload Not more than 1024 bytes in JSON string, this payload will be sent in webhook
+	Payload  *map[string]interface{} `json:"payload,omitempty"`
+	TestMode *bool                   `json:"testMode,omitempty"`
+	Type     PaymentType             `json:"type"`
+	UserName string                  `json:"userName"`
 }
 
 // Auction defines model for Auction.
@@ -397,6 +425,12 @@ type CheckTxPayload struct {
 	Uuid string  `json:"uuid"`
 }
 
+// CollectionOfferAttribute defines model for CollectionOfferAttribute.
+type CollectionOfferAttribute struct {
+	Trait  string   `json:"trait"`
+	Values []string `json:"values"`
+}
+
 // CollectionUpdateRequest defines model for CollectionUpdateRequest.
 type CollectionUpdateRequest struct {
 	// Metadata Info about fields: https://github.com/getgems-io/nft-contracts/blob/main/docs/metadata.md
@@ -516,12 +550,9 @@ type ConfirmTransferResponse struct {
 
 // CreateCollectionOfferPayload defines model for CreateCollectionOfferPayload.
 type CreateCollectionOfferPayload struct {
-	Amount     int `json:"amount"`
-	Attributes *[]struct {
-		Trait  *string   `json:"trait,omitempty"`
-		Values *[]string `json:"values,omitempty"`
-	} `json:"attributes"`
-	CollectionAddress string `json:"collectionAddress"`
+	Amount            int                         `json:"amount"`
+	Attributes        *[]CollectionOfferAttribute `json:"attributes"`
+	CollectionAddress string                      `json:"collectionAddress"`
 
 	// FinishAt Timestamp in sec
 	FinishAt int32 `json:"finishAt"`
@@ -616,20 +647,29 @@ type FixPriceSaleContractType string
 // FixPriceSaleType defines model for FixPriceSale.Type.
 type FixPriceSaleType string
 
-// FragmentBuyResponse defines model for FragmentBuyResponse.
-type FragmentBuyResponse struct {
-	Response *struct {
-		CheckRef string `json:"checkRef"`
-	} `json:"response,omitempty"`
-	Success *bool `json:"success,omitempty"`
-}
-
 // FragmentCheckTransactionResponse defines model for FragmentCheckTransactionResponse.
 type FragmentCheckTransactionResponse struct {
 	Response *struct {
 		Status string `json:"status"`
 	} `json:"response,omitempty"`
-	Success *bool `json:"success,omitempty"`
+	Success bool `json:"success"`
+}
+
+// FragmentCreatePaymentResponse defines model for FragmentCreatePaymentResponse.
+type FragmentCreatePaymentResponse struct {
+	Response struct {
+		ExpiresAt     string  `json:"expiresAt"`
+		TonPriceHuman float32 `json:"tonPriceHuman"`
+		TonPriceNano  string  `json:"tonPriceNano"`
+		Uuid          string  `json:"uuid"`
+	} `json:"response"`
+	Success bool `json:"success"`
+}
+
+// FragmentGetPaymentResponse defines model for FragmentGetPaymentResponse.
+type FragmentGetPaymentResponse struct {
+	Response FragmentPayment `json:"response"`
+	Success  bool            `json:"success"`
 }
 
 // FragmentGetPremiumPricesResponse defines model for FragmentGetPremiumPricesResponse.
@@ -639,16 +679,70 @@ type FragmentGetPremiumPricesResponse struct {
 		TonValue float32 `json:"tonValue"`
 		UsdValue float32 `json:"usdValue"`
 	} `json:"response,omitempty"`
-	Success *bool `json:"success,omitempty"`
+	Success bool `json:"success"`
 }
 
 // FragmentGetPriceResponse defines model for FragmentGetPriceResponse.
 type FragmentGetPriceResponse struct {
-	Response *struct {
-		TonValue *float32 `json:"tonValue"`
+	Response struct {
+		TonValue float32  `json:"tonValue"`
 		UsdValue *float32 `json:"usdValue"`
+	} `json:"response"`
+	Success bool `json:"success"`
+}
+
+// FragmentPayment defines model for FragmentPayment.
+type FragmentPayment struct {
+	Amount      float32       `json:"amount"`
+	DateCreated string        `json:"dateCreated"`
+	DatePayed   *string       `json:"datePayed"`
+	PaymentType PaymentType   `json:"paymentType"`
+	PriceTon    float32       `json:"priceTon"`
+	PriceUsdt   float32       `json:"priceUsdt"`
+	Ref         string        `json:"ref"`
+	Status      PaymentStatus `json:"status"`
+	TgUserName  string        `json:"tgUserName"`
+	Uuid        string        `json:"uuid"`
+}
+
+// FragmentPaymentsListResponse defines model for FragmentPaymentsListResponse.
+type FragmentPaymentsListResponse struct {
+	Response struct {
+		Cursor   *string           `json:"cursor"`
+		Payments []FragmentPayment `json:"payments"`
+	} `json:"response"`
+	Success bool `json:"success"`
+}
+
+// FragmentSearchUserResponse defines model for FragmentSearchUserResponse.
+type FragmentSearchUserResponse struct {
+	Response *struct {
+		Name      string  `json:"name"`
+		PhotoHtml string  `json:"photoHtml"`
+		PhotoUrl  *string `json:"photoUrl,omitempty"`
 	} `json:"response,omitempty"`
-	Success *bool `json:"success,omitempty"`
+	Success bool `json:"success"`
+}
+
+// FragmentStarsLimitsResponse defines model for FragmentStarsLimitsResponse.
+type FragmentStarsLimitsResponse struct {
+	Response *struct {
+		Max float32 `json:"max"`
+		Min float32 `json:"min"`
+	} `json:"response,omitempty"`
+	Success bool `json:"success"`
+}
+
+// FragmentWalletInfoResponse defines model for FragmentWalletInfoResponse.
+type FragmentWalletInfoResponse struct {
+	Response struct {
+		Address        string  `json:"address"`
+		ApiHash        *string `json:"apiHash"`
+		BalanceTon     float32 `json:"balanceTon"`
+		BalanceTonNano string  `json:"balanceTonNano"`
+		CookieString   *string `json:"cookieString"`
+	} `json:"response"`
+	Success bool `json:"success"`
 }
 
 // GiftTransferBatchRequest defines model for GiftTransferBatchRequest.
@@ -667,6 +761,15 @@ type GiftTransferRequest struct {
 
 // HistoryType defines model for HistoryType.
 type HistoryType string
+
+// HistoryTypeBundleSale defines model for HistoryTypeBundleSale.
+type HistoryTypeBundleSale struct {
+	BundlePrice string      `json:"bundlePrice"`
+	NewOwner    *string     `json:"newOwner"`
+	NftCount    int32       `json:"nftCount"`
+	OldOwner    *string     `json:"oldOwner"`
+	Type        HistoryType `json:"type"`
+}
 
 // HistoryTypeBurn defines model for HistoryTypeBurn.
 type HistoryTypeBurn struct {
@@ -758,6 +861,15 @@ type HistoryTypeTransfer struct {
 
 // Lang defines model for Lang.
 type Lang string
+
+// MakeNftActionBidRequest defines model for MakeNftActionBidRequest.
+type MakeNftActionBidRequest struct {
+	// Amount Bid amount in nano TON/GRAM
+	Amount string `json:"amount"`
+
+	// Version Version from sale object (FixPriceSale)
+	Version string `json:"version"`
+}
 
 // MintingListItem defines model for MintingListItem.
 type MintingListItem struct {
@@ -1218,10 +1330,12 @@ type NftStickerCollectionsFullResponse struct {
 
 // Offer defines model for Offer.
 type Offer struct {
-	CollectionAddress *string  `json:"collectionAddress"`
-	Currency          Currency `json:"currency"`
-	FeeAddress        string   `json:"feeAddress"`
-	FeePrice          string   `json:"feePrice"`
+	// Attributes For collection offers. Required attributes
+	Attributes        *[]CollectionOfferAttribute `json:"attributes,omitempty"`
+	CollectionAddress *string                     `json:"collectionAddress"`
+	Currency          Currency                    `json:"currency"`
+	FeeAddress        string                      `json:"feeAddress"`
+	FeePrice          string                      `json:"feePrice"`
 
 	// FinishAt Timestamp
 	FinishAt          int64  `json:"finishAt"`
@@ -1254,10 +1368,12 @@ type OfferListResponse struct {
 
 // OfferWithStatus defines model for OfferWithStatus.
 type OfferWithStatus struct {
-	CollectionAddress *string  `json:"collectionAddress"`
-	Currency          Currency `json:"currency"`
-	FeeAddress        string   `json:"feeAddress"`
-	FeePrice          string   `json:"feePrice"`
+	// Attributes For collection offers. Required attributes
+	Attributes        *[]CollectionOfferAttribute `json:"attributes,omitempty"`
+	CollectionAddress *string                     `json:"collectionAddress"`
+	Currency          Currency                    `json:"currency"`
+	FeeAddress        string                      `json:"feeAddress"`
+	FeePrice          string                      `json:"feePrice"`
 
 	// FinishAt Timestamp
 	FinishAt          int64  `json:"finishAt"`
@@ -1290,6 +1406,12 @@ type OpenCNFTResult struct {
 	} `json:"response"`
 	Success bool `json:"success"`
 }
+
+// PaymentStatus defines model for PaymentStatus.
+type PaymentStatus string
+
+// PaymentType defines model for PaymentType.
+type PaymentType string
 
 // PutUpNftForFallingSaleRequest defines model for PutUpNftForFallingSaleRequest.
 type PutUpNftForFallingSaleRequest struct {
@@ -1725,29 +1847,6 @@ type V1GetCollectionTopParams struct {
 // V1GetCollectionTopParamsKind defines parameters for V1GetCollectionTop.
 type V1GetCollectionTopParamsKind string
 
-// V1WalletAddFundsJSONBody defines parameters for V1WalletAddFunds.
-type V1WalletAddFundsJSONBody struct {
-	Amount   float32 `json:"amount"`
-	UserName string  `json:"userName"`
-}
-
-// V1WalletBuyPremiumJSONBody defines parameters for V1WalletBuyPremium.
-type V1WalletBuyPremiumJSONBody struct {
-	Months   float32 `json:"months"`
-	UserName string  `json:"userName"`
-}
-
-// V1WalletBuyStarsJSONBody defines parameters for V1WalletBuyStars.
-type V1WalletBuyStarsJSONBody struct {
-	Quantity float32 `json:"quantity"`
-	UserName string  `json:"userName"`
-}
-
-// V1CheckFragmentTransactionJSONBody defines parameters for V1CheckFragmentTransaction.
-type V1CheckFragmentTransactionJSONBody struct {
-	CheckRef string `json:"checkRef"`
-}
-
 // V1BuyPremiumJSONBody defines parameters for V1BuyPremium.
 type V1BuyPremiumJSONBody struct {
 	Months   float32 `json:"months"`
@@ -1760,9 +1859,46 @@ type V1BuyStarsJSONBody struct {
 	UserName string  `json:"userName"`
 }
 
-// V1GetStarsPriceJSONBody defines parameters for V1GetStarsPrice.
-type V1GetStarsPriceJSONBody struct {
-	Quantity float32 `json:"quantity"`
+// V1FragmentCancelPaymentJSONBody defines parameters for V1FragmentCancelPayment.
+type V1FragmentCancelPaymentJSONBody struct {
+	Uuid string `json:"uuid"`
+}
+
+// V1CheckFragmentTransactionJSONBody defines parameters for V1CheckFragmentTransaction.
+type V1CheckFragmentTransactionJSONBody struct {
+	CheckRef string `json:"checkRef"`
+}
+
+// V1FragmentExecutePaymentJSONBody defines parameters for V1FragmentExecutePayment.
+type V1FragmentExecutePaymentJSONBody struct {
+	Uuid string `json:"uuid"`
+}
+
+// V1GetStarsPriceParams defines parameters for V1GetStarsPrice.
+type V1GetStarsPriceParams struct {
+	Quantity float32 `form:"quantity" json:"quantity"`
+}
+
+// V1FragmentGetPaymentsListParams defines parameters for V1FragmentGetPaymentsList.
+type V1FragmentGetPaymentsListParams struct {
+	Limit  *float32 `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *string  `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// V1FragmentSearchUserParams defines parameters for V1FragmentSearchUser.
+type V1FragmentSearchUserParams struct {
+	UserName string `form:"userName" json:"userName"`
+}
+
+// V1FragmentSetApiCredentialsJSONBody defines parameters for V1FragmentSetApiCredentials.
+type V1FragmentSetApiCredentialsJSONBody struct {
+	Cookie *string `json:"cookie,omitempty"`
+	Hash   *string `json:"hash,omitempty"`
+}
+
+// V1FragmentSetWebhookUrlJSONBody defines parameters for V1FragmentSetWebhookUrl.
+type V1FragmentSetWebhookUrlJSONBody struct {
+	WebhookUrl string `json:"webhookUrl"`
 }
 
 // V1GetGiftCollectionsParams defines parameters for V1GetGiftCollections.
@@ -2013,26 +2149,29 @@ type UpdateNftJSONRequestBody = UpdateRequest
 // V1CheckTxStatusJSONRequestBody defines body for V1CheckTxStatus for application/json ContentType.
 type V1CheckTxStatusJSONRequestBody = CheckTxPayload
 
-// V1WalletAddFundsJSONRequestBody defines body for V1WalletAddFunds for application/json ContentType.
-type V1WalletAddFundsJSONRequestBody V1WalletAddFundsJSONBody
-
-// V1WalletBuyPremiumJSONRequestBody defines body for V1WalletBuyPremium for application/json ContentType.
-type V1WalletBuyPremiumJSONRequestBody V1WalletBuyPremiumJSONBody
-
-// V1WalletBuyStarsJSONRequestBody defines body for V1WalletBuyStars for application/json ContentType.
-type V1WalletBuyStarsJSONRequestBody V1WalletBuyStarsJSONBody
-
-// V1CheckFragmentTransactionJSONRequestBody defines body for V1CheckFragmentTransaction for application/json ContentType.
-type V1CheckFragmentTransactionJSONRequestBody V1CheckFragmentTransactionJSONBody
-
 // V1BuyPremiumJSONRequestBody defines body for V1BuyPremium for application/json ContentType.
 type V1BuyPremiumJSONRequestBody V1BuyPremiumJSONBody
 
 // V1BuyStarsJSONRequestBody defines body for V1BuyStars for application/json ContentType.
 type V1BuyStarsJSONRequestBody V1BuyStarsJSONBody
 
-// V1GetStarsPriceJSONRequestBody defines body for V1GetStarsPrice for application/json ContentType.
-type V1GetStarsPriceJSONRequestBody V1GetStarsPriceJSONBody
+// V1FragmentCancelPaymentJSONRequestBody defines body for V1FragmentCancelPayment for application/json ContentType.
+type V1FragmentCancelPaymentJSONRequestBody V1FragmentCancelPaymentJSONBody
+
+// V1CheckFragmentTransactionJSONRequestBody defines body for V1CheckFragmentTransaction for application/json ContentType.
+type V1CheckFragmentTransactionJSONRequestBody V1CheckFragmentTransactionJSONBody
+
+// V1FragmentCreatePaymentJSONRequestBody defines body for V1FragmentCreatePayment for application/json ContentType.
+type V1FragmentCreatePaymentJSONRequestBody = ApiFragmentApiCreatePaymentRequest
+
+// V1FragmentExecutePaymentJSONRequestBody defines body for V1FragmentExecutePayment for application/json ContentType.
+type V1FragmentExecutePaymentJSONRequestBody V1FragmentExecutePaymentJSONBody
+
+// V1FragmentSetApiCredentialsJSONRequestBody defines body for V1FragmentSetApiCredentials for application/json ContentType.
+type V1FragmentSetApiCredentialsJSONRequestBody V1FragmentSetApiCredentialsJSONBody
+
+// V1FragmentSetWebhookUrlJSONRequestBody defines body for V1FragmentSetWebhookUrl for application/json ContentType.
+type V1FragmentSetWebhookUrlJSONRequestBody V1FragmentSetWebhookUrlJSONBody
 
 // V1ConfirmGiftTransferJSONRequestBody defines body for V1ConfirmGiftTransfer for application/json ContentType.
 type V1ConfirmGiftTransferJSONRequestBody V1ConfirmGiftTransferJSONBody
@@ -2048,6 +2187,9 @@ type V1BuyNftFixPriceJSONRequestBody = BuyNftFixPriceRequest
 
 // V1GetNftsByAddressesJSONRequestBody defines body for V1GetNftsByAddresses for application/json ContentType.
 type V1GetNftsByAddressesJSONRequestBody = NftItemsByAddressRequestBody
+
+// V1MakeNftActionBidJSONRequestBody defines body for V1MakeNftActionBid for application/json ContentType.
+type V1MakeNftActionBidJSONRequestBody = MakeNftActionBidRequest
 
 // V1ConfirmPutUpOffchainNftForSaleFixPriceJSONRequestBody defines body for V1ConfirmPutUpOffchainNftForSaleFixPrice for application/json ContentType.
 type V1ConfirmPutUpOffchainNftForSaleFixPriceJSONRequestBody = ConfirmPutUpForSaleRequest
@@ -2381,6 +2523,32 @@ func (t *NftItemHistoryItem_TypeData) MergeHistoryTypeLuckyBuy(v HistoryTypeLuck
 	return err
 }
 
+// AsHistoryTypeBundleSale returns the union data inside the NftItemHistoryItem_TypeData as a HistoryTypeBundleSale
+func (t NftItemHistoryItem_TypeData) AsHistoryTypeBundleSale() (HistoryTypeBundleSale, error) {
+	var body HistoryTypeBundleSale
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromHistoryTypeBundleSale overwrites any union data inside the NftItemHistoryItem_TypeData as the provided HistoryTypeBundleSale
+func (t *NftItemHistoryItem_TypeData) FromHistoryTypeBundleSale(v HistoryTypeBundleSale) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeHistoryTypeBundleSale performs a merge with any union data inside the NftItemHistoryItem_TypeData, using the provided HistoryTypeBundleSale
+func (t *NftItemHistoryItem_TypeData) MergeHistoryTypeBundleSale(v HistoryTypeBundleSale) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t NftItemHistoryItem_TypeData) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
 	return b, err
@@ -2638,26 +2806,6 @@ type ClientInterface interface {
 	// V1GetCollectionTop request
 	V1GetCollectionTop(ctx context.Context, params *V1GetCollectionTopParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// V1WalletAddFundsWithBody request with any body
-	V1WalletAddFundsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	V1WalletAddFunds(ctx context.Context, body V1WalletAddFundsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// V1WalletBuyPremiumWithBody request with any body
-	V1WalletBuyPremiumWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	V1WalletBuyPremium(ctx context.Context, body V1WalletBuyPremiumJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// V1WalletBuyStarsWithBody request with any body
-	V1WalletBuyStarsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	V1WalletBuyStars(ctx context.Context, body V1WalletBuyStarsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// V1CheckFragmentTransactionWithBody request with any body
-	V1CheckFragmentTransactionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	V1CheckFragmentTransaction(ctx context.Context, body V1CheckFragmentTransactionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// V1BuyPremiumWithBody request with any body
 	V1BuyPremiumWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2668,13 +2816,56 @@ type ClientInterface interface {
 
 	V1BuyStars(ctx context.Context, body V1BuyStarsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1FragmentCancelPaymentWithBody request with any body
+	V1FragmentCancelPaymentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1FragmentCancelPayment(ctx context.Context, body V1FragmentCancelPaymentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1CheckFragmentTransactionWithBody request with any body
+	V1CheckFragmentTransactionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1CheckFragmentTransaction(ctx context.Context, body V1CheckFragmentTransactionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FragmentCreatePaymentWithBody request with any body
+	V1FragmentCreatePaymentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1FragmentCreatePayment(ctx context.Context, body V1FragmentCreatePaymentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FragmentExecutePaymentWithBody request with any body
+	V1FragmentExecutePaymentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1FragmentExecutePayment(ctx context.Context, body V1FragmentExecutePaymentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1GetPremiumPrices request
 	V1GetPremiumPrices(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// V1GetStarsPriceWithBody request with any body
-	V1GetStarsPriceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// V1GetStarsPrice request
+	V1GetStarsPrice(ctx context.Context, params *V1GetStarsPriceParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	V1GetStarsPrice(ctx context.Context, body V1GetStarsPriceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// V1FragmentGetPayment request
+	V1FragmentGetPayment(ctx context.Context, uuid string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FragmentGetPaymentsList request
+	V1FragmentGetPaymentsList(ctx context.Context, params *V1FragmentGetPaymentsListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FragmentSearchUser request
+	V1FragmentSearchUser(ctx context.Context, params *V1FragmentSearchUserParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FragmentSetApiCredentialsWithBody request with any body
+	V1FragmentSetApiCredentialsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1FragmentSetApiCredentials(ctx context.Context, body V1FragmentSetApiCredentialsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FragmentSetWebhookUrlWithBody request with any body
+	V1FragmentSetWebhookUrlWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1FragmentSetWebhookUrl(ctx context.Context, body V1FragmentSetWebhookUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FragmentStarsLimits request
+	V1FragmentStarsLimits(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FragmentWalletInfo request
+	V1FragmentWalletInfo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1GetGiftCollections request
 	V1GetGiftCollections(ctx context.Context, params *V1GetGiftCollectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2733,6 +2924,11 @@ type ClientInterface interface {
 	V1GetNftsByAddressesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	V1GetNftsByAddresses(ctx context.Context, body V1GetNftsByAddressesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1MakeNftActionBidWithBody request with any body
+	V1MakeNftActionBidWithBody(ctx context.Context, nftAddress string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1MakeNftActionBid(ctx context.Context, nftAddress string, body V1MakeNftActionBidJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1ConfirmPutUpOffchainNftForSaleFixPriceWithBody request with any body
 	V1ConfirmPutUpOffchainNftForSaleFixPriceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3314,102 +3510,6 @@ func (c *Client) V1GetCollectionTop(ctx context.Context, params *V1GetCollection
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1WalletAddFundsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1WalletAddFundsRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) V1WalletAddFunds(ctx context.Context, body V1WalletAddFundsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1WalletAddFundsRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) V1WalletBuyPremiumWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1WalletBuyPremiumRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) V1WalletBuyPremium(ctx context.Context, body V1WalletBuyPremiumJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1WalletBuyPremiumRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) V1WalletBuyStarsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1WalletBuyStarsRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) V1WalletBuyStars(ctx context.Context, body V1WalletBuyStarsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1WalletBuyStarsRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) V1CheckFragmentTransactionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1CheckFragmentTransactionRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) V1CheckFragmentTransaction(ctx context.Context, body V1CheckFragmentTransactionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1CheckFragmentTransactionRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) V1BuyPremiumWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1BuyPremiumRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -3458,6 +3558,102 @@ func (c *Client) V1BuyStars(ctx context.Context, body V1BuyStarsJSONRequestBody,
 	return c.Client.Do(req)
 }
 
+func (c *Client) V1FragmentCancelPaymentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentCancelPaymentRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FragmentCancelPayment(ctx context.Context, body V1FragmentCancelPaymentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentCancelPaymentRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1CheckFragmentTransactionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1CheckFragmentTransactionRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1CheckFragmentTransaction(ctx context.Context, body V1CheckFragmentTransactionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1CheckFragmentTransactionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FragmentCreatePaymentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentCreatePaymentRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FragmentCreatePayment(ctx context.Context, body V1FragmentCreatePaymentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentCreatePaymentRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FragmentExecutePaymentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentExecutePaymentRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FragmentExecutePayment(ctx context.Context, body V1FragmentExecutePaymentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentExecutePaymentRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) V1GetPremiumPrices(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1GetPremiumPricesRequest(c.Server)
 	if err != nil {
@@ -3470,8 +3666,8 @@ func (c *Client) V1GetPremiumPrices(ctx context.Context, reqEditors ...RequestEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1GetStarsPriceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1GetStarsPriceRequestWithBody(c.Server, contentType, body)
+func (c *Client) V1GetStarsPrice(ctx context.Context, params *V1GetStarsPriceParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1GetStarsPriceRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3482,8 +3678,104 @@ func (c *Client) V1GetStarsPriceWithBody(ctx context.Context, contentType string
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1GetStarsPrice(ctx context.Context, body V1GetStarsPriceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1GetStarsPriceRequest(c.Server, body)
+func (c *Client) V1FragmentGetPayment(ctx context.Context, uuid string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentGetPaymentRequest(c.Server, uuid)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FragmentGetPaymentsList(ctx context.Context, params *V1FragmentGetPaymentsListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentGetPaymentsListRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FragmentSearchUser(ctx context.Context, params *V1FragmentSearchUserParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentSearchUserRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FragmentSetApiCredentialsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentSetApiCredentialsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FragmentSetApiCredentials(ctx context.Context, body V1FragmentSetApiCredentialsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentSetApiCredentialsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FragmentSetWebhookUrlWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentSetWebhookUrlRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FragmentSetWebhookUrl(ctx context.Context, body V1FragmentSetWebhookUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentSetWebhookUrlRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FragmentStarsLimits(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentStarsLimitsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FragmentWalletInfo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FragmentWalletInfoRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -3736,6 +4028,30 @@ func (c *Client) V1GetNftsByAddressesWithBody(ctx context.Context, contentType s
 
 func (c *Client) V1GetNftsByAddresses(ctx context.Context, body V1GetNftsByAddressesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1GetNftsByAddressesRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1MakeNftActionBidWithBody(ctx context.Context, nftAddress string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1MakeNftActionBidRequestWithBody(c.Server, nftAddress, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1MakeNftActionBid(ctx context.Context, nftAddress string, body V1MakeNftActionBidJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1MakeNftActionBidRequest(c.Server, nftAddress, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5848,166 +6164,6 @@ func NewV1GetCollectionTopRequest(server string, params *V1GetCollectionTopParam
 	return req, nil
 }
 
-// NewV1WalletAddFundsRequest calls the generic V1WalletAddFunds builder with application/json body
-func NewV1WalletAddFundsRequest(server string, body V1WalletAddFundsJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewV1WalletAddFundsRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewV1WalletAddFundsRequestWithBody generates requests for V1WalletAddFunds with any type of body
-func NewV1WalletAddFundsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/fragment-wallet/add-funds")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewV1WalletBuyPremiumRequest calls the generic V1WalletBuyPremium builder with application/json body
-func NewV1WalletBuyPremiumRequest(server string, body V1WalletBuyPremiumJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewV1WalletBuyPremiumRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewV1WalletBuyPremiumRequestWithBody generates requests for V1WalletBuyPremium with any type of body
-func NewV1WalletBuyPremiumRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/fragment-wallet/buy-premium")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewV1WalletBuyStarsRequest calls the generic V1WalletBuyStars builder with application/json body
-func NewV1WalletBuyStarsRequest(server string, body V1WalletBuyStarsJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewV1WalletBuyStarsRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewV1WalletBuyStarsRequestWithBody generates requests for V1WalletBuyStars with any type of body
-func NewV1WalletBuyStarsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/fragment-wallet/buy-stars")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewV1CheckFragmentTransactionRequest calls the generic V1CheckFragmentTransaction builder with application/json body
-func NewV1CheckFragmentTransactionRequest(server string, body V1CheckFragmentTransactionJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewV1CheckFragmentTransactionRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewV1CheckFragmentTransactionRequestWithBody generates requests for V1CheckFragmentTransaction with any type of body
-func NewV1CheckFragmentTransactionRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/fragment-wallet/check-transaction")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewV1BuyPremiumRequest calls the generic V1BuyPremium builder with application/json body
 func NewV1BuyPremiumRequest(server string, body V1BuyPremiumJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -6088,6 +6244,166 @@ func NewV1BuyStarsRequestWithBody(server string, contentType string, body io.Rea
 	return req, nil
 }
 
+// NewV1FragmentCancelPaymentRequest calls the generic V1FragmentCancelPayment builder with application/json body
+func NewV1FragmentCancelPaymentRequest(server string, body V1FragmentCancelPaymentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1FragmentCancelPaymentRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewV1FragmentCancelPaymentRequestWithBody generates requests for V1FragmentCancelPayment with any type of body
+func NewV1FragmentCancelPaymentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/fragment/cancel-payment")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1CheckFragmentTransactionRequest calls the generic V1CheckFragmentTransaction builder with application/json body
+func NewV1CheckFragmentTransactionRequest(server string, body V1CheckFragmentTransactionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1CheckFragmentTransactionRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewV1CheckFragmentTransactionRequestWithBody generates requests for V1CheckFragmentTransaction with any type of body
+func NewV1CheckFragmentTransactionRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/fragment/check-transaction")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1FragmentCreatePaymentRequest calls the generic V1FragmentCreatePayment builder with application/json body
+func NewV1FragmentCreatePaymentRequest(server string, body V1FragmentCreatePaymentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1FragmentCreatePaymentRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewV1FragmentCreatePaymentRequestWithBody generates requests for V1FragmentCreatePayment with any type of body
+func NewV1FragmentCreatePaymentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/fragment/create-payment")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1FragmentExecutePaymentRequest calls the generic V1FragmentExecutePayment builder with application/json body
+func NewV1FragmentExecutePaymentRequest(server string, body V1FragmentExecutePaymentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1FragmentExecutePaymentRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewV1FragmentExecutePaymentRequestWithBody generates requests for V1FragmentExecutePayment with any type of body
+func NewV1FragmentExecutePaymentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/fragment/execute-payment")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewV1GetPremiumPricesRequest generates requests for V1GetPremiumPrices
 func NewV1GetPremiumPricesRequest(server string) (*http.Request, error) {
 	var err error
@@ -6107,7 +6423,7 @@ func NewV1GetPremiumPricesRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -6115,19 +6431,8 @@ func NewV1GetPremiumPricesRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewV1GetStarsPriceRequest calls the generic V1GetStarsPrice builder with application/json body
-func NewV1GetStarsPriceRequest(server string, body V1GetStarsPriceJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewV1GetStarsPriceRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewV1GetStarsPriceRequestWithBody generates requests for V1GetStarsPrice with any type of body
-func NewV1GetStarsPriceRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewV1GetStarsPriceRequest generates requests for V1GetStarsPrice
+func NewV1GetStarsPriceRequest(server string, params *V1GetStarsPriceParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -6145,12 +6450,306 @@ func NewV1GetStarsPriceRequestWithBody(server string, contentType string, body i
 		return nil, err
 	}
 
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "quantity", runtime.ParamLocationQuery, params.Quantity); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1FragmentGetPaymentRequest generates requests for V1FragmentGetPayment
+func NewV1FragmentGetPaymentRequest(server string, uuid string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "uuid", runtime.ParamLocationPath, uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/fragment/payment/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1FragmentGetPaymentsListRequest generates requests for V1FragmentGetPaymentsList
+func NewV1FragmentGetPaymentsListRequest(server string, params *V1FragmentGetPaymentsListParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/fragment/payments-list")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cursor", runtime.ParamLocationQuery, *params.Cursor); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1FragmentSearchUserRequest generates requests for V1FragmentSearchUser
+func NewV1FragmentSearchUserRequest(server string, params *V1FragmentSearchUserParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/fragment/search-user")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "userName", runtime.ParamLocationQuery, params.UserName); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1FragmentSetApiCredentialsRequest calls the generic V1FragmentSetApiCredentials builder with application/json body
+func NewV1FragmentSetApiCredentialsRequest(server string, body V1FragmentSetApiCredentialsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1FragmentSetApiCredentialsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewV1FragmentSetApiCredentialsRequestWithBody generates requests for V1FragmentSetApiCredentials with any type of body
+func NewV1FragmentSetApiCredentialsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/fragment/set-api-credentials")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
 	req, err := http.NewRequest("POST", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1FragmentSetWebhookUrlRequest calls the generic V1FragmentSetWebhookUrl builder with application/json body
+func NewV1FragmentSetWebhookUrlRequest(server string, body V1FragmentSetWebhookUrlJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1FragmentSetWebhookUrlRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewV1FragmentSetWebhookUrlRequestWithBody generates requests for V1FragmentSetWebhookUrl with any type of body
+func NewV1FragmentSetWebhookUrlRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/fragment/set-webhook-url")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1FragmentStarsLimitsRequest generates requests for V1FragmentStarsLimits
+func NewV1FragmentStarsLimitsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/fragment/stars-limits")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1FragmentWalletInfoRequest generates requests for V1FragmentWalletInfo
+func NewV1FragmentWalletInfoRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/fragment/wallet")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -7314,6 +7913,53 @@ func NewV1GetNftsByAddressesRequestWithBody(server string, contentType string, b
 	}
 
 	operationPath := fmt.Sprintf("/v1/nfts/list")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1MakeNftActionBidRequest calls the generic V1MakeNftActionBid builder with application/json body
+func NewV1MakeNftActionBidRequest(server string, nftAddress string, body V1MakeNftActionBidJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1MakeNftActionBidRequestWithBody(server, nftAddress, "application/json", bodyReader)
+}
+
+// NewV1MakeNftActionBidRequestWithBody generates requests for V1MakeNftActionBid with any type of body
+func NewV1MakeNftActionBidRequestWithBody(server string, nftAddress string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "nftAddress", runtime.ParamLocationPath, nftAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/nfts/make-auction-bid/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8752,26 +9398,6 @@ type ClientWithResponsesInterface interface {
 	// V1GetCollectionTopWithResponse request
 	V1GetCollectionTopWithResponse(ctx context.Context, params *V1GetCollectionTopParams, reqEditors ...RequestEditorFn) (*V1GetCollectionTopResp, error)
 
-	// V1WalletAddFundsWithBodyWithResponse request with any body
-	V1WalletAddFundsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WalletAddFundsResp, error)
-
-	V1WalletAddFundsWithResponse(ctx context.Context, body V1WalletAddFundsJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WalletAddFundsResp, error)
-
-	// V1WalletBuyPremiumWithBodyWithResponse request with any body
-	V1WalletBuyPremiumWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WalletBuyPremiumResp, error)
-
-	V1WalletBuyPremiumWithResponse(ctx context.Context, body V1WalletBuyPremiumJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WalletBuyPremiumResp, error)
-
-	// V1WalletBuyStarsWithBodyWithResponse request with any body
-	V1WalletBuyStarsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WalletBuyStarsResp, error)
-
-	V1WalletBuyStarsWithResponse(ctx context.Context, body V1WalletBuyStarsJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WalletBuyStarsResp, error)
-
-	// V1CheckFragmentTransactionWithBodyWithResponse request with any body
-	V1CheckFragmentTransactionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CheckFragmentTransactionResp, error)
-
-	V1CheckFragmentTransactionWithResponse(ctx context.Context, body V1CheckFragmentTransactionJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CheckFragmentTransactionResp, error)
-
 	// V1BuyPremiumWithBodyWithResponse request with any body
 	V1BuyPremiumWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1BuyPremiumResp, error)
 
@@ -8782,13 +9408,56 @@ type ClientWithResponsesInterface interface {
 
 	V1BuyStarsWithResponse(ctx context.Context, body V1BuyStarsJSONRequestBody, reqEditors ...RequestEditorFn) (*V1BuyStarsResp, error)
 
+	// V1FragmentCancelPaymentWithBodyWithResponse request with any body
+	V1FragmentCancelPaymentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FragmentCancelPaymentResp, error)
+
+	V1FragmentCancelPaymentWithResponse(ctx context.Context, body V1FragmentCancelPaymentJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FragmentCancelPaymentResp, error)
+
+	// V1CheckFragmentTransactionWithBodyWithResponse request with any body
+	V1CheckFragmentTransactionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CheckFragmentTransactionResp, error)
+
+	V1CheckFragmentTransactionWithResponse(ctx context.Context, body V1CheckFragmentTransactionJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CheckFragmentTransactionResp, error)
+
+	// V1FragmentCreatePaymentWithBodyWithResponse request with any body
+	V1FragmentCreatePaymentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FragmentCreatePaymentResp, error)
+
+	V1FragmentCreatePaymentWithResponse(ctx context.Context, body V1FragmentCreatePaymentJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FragmentCreatePaymentResp, error)
+
+	// V1FragmentExecutePaymentWithBodyWithResponse request with any body
+	V1FragmentExecutePaymentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FragmentExecutePaymentResp, error)
+
+	V1FragmentExecutePaymentWithResponse(ctx context.Context, body V1FragmentExecutePaymentJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FragmentExecutePaymentResp, error)
+
 	// V1GetPremiumPricesWithResponse request
 	V1GetPremiumPricesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*V1GetPremiumPricesResp, error)
 
-	// V1GetStarsPriceWithBodyWithResponse request with any body
-	V1GetStarsPriceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1GetStarsPriceResp, error)
+	// V1GetStarsPriceWithResponse request
+	V1GetStarsPriceWithResponse(ctx context.Context, params *V1GetStarsPriceParams, reqEditors ...RequestEditorFn) (*V1GetStarsPriceResp, error)
 
-	V1GetStarsPriceWithResponse(ctx context.Context, body V1GetStarsPriceJSONRequestBody, reqEditors ...RequestEditorFn) (*V1GetStarsPriceResp, error)
+	// V1FragmentGetPaymentWithResponse request
+	V1FragmentGetPaymentWithResponse(ctx context.Context, uuid string, reqEditors ...RequestEditorFn) (*V1FragmentGetPaymentResp, error)
+
+	// V1FragmentGetPaymentsListWithResponse request
+	V1FragmentGetPaymentsListWithResponse(ctx context.Context, params *V1FragmentGetPaymentsListParams, reqEditors ...RequestEditorFn) (*V1FragmentGetPaymentsListResp, error)
+
+	// V1FragmentSearchUserWithResponse request
+	V1FragmentSearchUserWithResponse(ctx context.Context, params *V1FragmentSearchUserParams, reqEditors ...RequestEditorFn) (*V1FragmentSearchUserResp, error)
+
+	// V1FragmentSetApiCredentialsWithBodyWithResponse request with any body
+	V1FragmentSetApiCredentialsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FragmentSetApiCredentialsResp, error)
+
+	V1FragmentSetApiCredentialsWithResponse(ctx context.Context, body V1FragmentSetApiCredentialsJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FragmentSetApiCredentialsResp, error)
+
+	// V1FragmentSetWebhookUrlWithBodyWithResponse request with any body
+	V1FragmentSetWebhookUrlWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FragmentSetWebhookUrlResp, error)
+
+	V1FragmentSetWebhookUrlWithResponse(ctx context.Context, body V1FragmentSetWebhookUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FragmentSetWebhookUrlResp, error)
+
+	// V1FragmentStarsLimitsWithResponse request
+	V1FragmentStarsLimitsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*V1FragmentStarsLimitsResp, error)
+
+	// V1FragmentWalletInfoWithResponse request
+	V1FragmentWalletInfoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*V1FragmentWalletInfoResp, error)
 
 	// V1GetGiftCollectionsWithResponse request
 	V1GetGiftCollectionsWithResponse(ctx context.Context, params *V1GetGiftCollectionsParams, reqEditors ...RequestEditorFn) (*V1GetGiftCollectionsResp, error)
@@ -8847,6 +9516,11 @@ type ClientWithResponsesInterface interface {
 	V1GetNftsByAddressesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1GetNftsByAddressesResp, error)
 
 	V1GetNftsByAddressesWithResponse(ctx context.Context, body V1GetNftsByAddressesJSONRequestBody, reqEditors ...RequestEditorFn) (*V1GetNftsByAddressesResp, error)
+
+	// V1MakeNftActionBidWithBodyWithResponse request with any body
+	V1MakeNftActionBidWithBodyWithResponse(ctx context.Context, nftAddress string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1MakeNftActionBidResp, error)
+
+	V1MakeNftActionBidWithResponse(ctx context.Context, nftAddress string, body V1MakeNftActionBidJSONRequestBody, reqEditors ...RequestEditorFn) (*V1MakeNftActionBidResp, error)
 
 	// V1ConfirmPutUpOffchainNftForSaleFixPriceWithBodyWithResponse request with any body
 	V1ConfirmPutUpOffchainNftForSaleFixPriceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1ConfirmPutUpOffchainNftForSaleFixPriceResp, error)
@@ -9686,98 +10360,6 @@ func (r V1GetCollectionTopResp) StatusCode() int {
 	return 0
 }
 
-type V1WalletAddFundsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *FragmentBuyResponse
-	JSON400      *FailedResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r V1WalletAddFundsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r V1WalletAddFundsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type V1WalletBuyPremiumResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *FragmentBuyResponse
-	JSON400      *FailedResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r V1WalletBuyPremiumResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r V1WalletBuyPremiumResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type V1WalletBuyStarsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *FragmentBuyResponse
-	JSON400      *FailedResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r V1WalletBuyStarsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r V1WalletBuyStarsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type V1CheckFragmentTransactionResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *FragmentCheckTransactionResponse
-	JSON400      *FailedResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r V1CheckFragmentTransactionResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r V1CheckFragmentTransactionResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type V1BuyPremiumResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -9824,6 +10406,103 @@ func (r V1BuyStarsResp) StatusCode() int {
 	return 0
 }
 
+type V1FragmentCancelPaymentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		ErrorMessage *string `json:"errorMessage,omitempty"`
+		Success      bool    `json:"success"`
+	}
+	JSON400 *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FragmentCancelPaymentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FragmentCancelPaymentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1CheckFragmentTransactionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *FragmentCheckTransactionResponse
+	JSON400      *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1CheckFragmentTransactionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1CheckFragmentTransactionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FragmentCreatePaymentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *FragmentCreatePaymentResponse
+	JSON400      *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FragmentCreatePaymentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FragmentCreatePaymentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FragmentExecutePaymentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Success bool `json:"success"`
+	}
+	JSON400 *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FragmentExecutePaymentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FragmentExecutePaymentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type V1GetPremiumPricesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -9864,6 +10543,171 @@ func (r V1GetStarsPriceResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1GetStarsPriceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FragmentGetPaymentResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *FragmentGetPaymentResponse
+	JSON400      *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FragmentGetPaymentResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FragmentGetPaymentResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FragmentGetPaymentsListResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *FragmentPaymentsListResponse
+	JSON400      *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FragmentGetPaymentsListResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FragmentGetPaymentsListResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FragmentSearchUserResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *FragmentSearchUserResponse
+	JSON400      *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FragmentSearchUserResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FragmentSearchUserResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FragmentSetApiCredentialsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Success bool `json:"success"`
+	}
+	JSON400 *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FragmentSetApiCredentialsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FragmentSetApiCredentialsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FragmentSetWebhookUrlResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Success bool `json:"success"`
+	}
+	JSON400 *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FragmentSetWebhookUrlResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FragmentSetWebhookUrlResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FragmentStarsLimitsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *FragmentStarsLimitsResponse
+	JSON400      *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FragmentStarsLimitsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FragmentStarsLimitsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FragmentWalletInfoResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *FragmentWalletInfoResponse
+	JSON400      *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FragmentWalletInfoResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FragmentWalletInfoResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -10232,6 +11076,29 @@ func (r V1GetNftsByAddressesResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1GetNftsByAddressesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1MakeNftActionBidResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TransactionResponse
+	JSON400      *FailedResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r V1MakeNftActionBidResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1MakeNftActionBidResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -11168,74 +12035,6 @@ func (c *ClientWithResponses) V1GetCollectionTopWithResponse(ctx context.Context
 	return ParseV1GetCollectionTopResp(rsp)
 }
 
-// V1WalletAddFundsWithBodyWithResponse request with arbitrary body returning *V1WalletAddFundsResp
-func (c *ClientWithResponses) V1WalletAddFundsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WalletAddFundsResp, error) {
-	rsp, err := c.V1WalletAddFundsWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseV1WalletAddFundsResp(rsp)
-}
-
-func (c *ClientWithResponses) V1WalletAddFundsWithResponse(ctx context.Context, body V1WalletAddFundsJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WalletAddFundsResp, error) {
-	rsp, err := c.V1WalletAddFunds(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseV1WalletAddFundsResp(rsp)
-}
-
-// V1WalletBuyPremiumWithBodyWithResponse request with arbitrary body returning *V1WalletBuyPremiumResp
-func (c *ClientWithResponses) V1WalletBuyPremiumWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WalletBuyPremiumResp, error) {
-	rsp, err := c.V1WalletBuyPremiumWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseV1WalletBuyPremiumResp(rsp)
-}
-
-func (c *ClientWithResponses) V1WalletBuyPremiumWithResponse(ctx context.Context, body V1WalletBuyPremiumJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WalletBuyPremiumResp, error) {
-	rsp, err := c.V1WalletBuyPremium(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseV1WalletBuyPremiumResp(rsp)
-}
-
-// V1WalletBuyStarsWithBodyWithResponse request with arbitrary body returning *V1WalletBuyStarsResp
-func (c *ClientWithResponses) V1WalletBuyStarsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WalletBuyStarsResp, error) {
-	rsp, err := c.V1WalletBuyStarsWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseV1WalletBuyStarsResp(rsp)
-}
-
-func (c *ClientWithResponses) V1WalletBuyStarsWithResponse(ctx context.Context, body V1WalletBuyStarsJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WalletBuyStarsResp, error) {
-	rsp, err := c.V1WalletBuyStars(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseV1WalletBuyStarsResp(rsp)
-}
-
-// V1CheckFragmentTransactionWithBodyWithResponse request with arbitrary body returning *V1CheckFragmentTransactionResp
-func (c *ClientWithResponses) V1CheckFragmentTransactionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CheckFragmentTransactionResp, error) {
-	rsp, err := c.V1CheckFragmentTransactionWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseV1CheckFragmentTransactionResp(rsp)
-}
-
-func (c *ClientWithResponses) V1CheckFragmentTransactionWithResponse(ctx context.Context, body V1CheckFragmentTransactionJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CheckFragmentTransactionResp, error) {
-	rsp, err := c.V1CheckFragmentTransaction(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseV1CheckFragmentTransactionResp(rsp)
-}
-
 // V1BuyPremiumWithBodyWithResponse request with arbitrary body returning *V1BuyPremiumResp
 func (c *ClientWithResponses) V1BuyPremiumWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1BuyPremiumResp, error) {
 	rsp, err := c.V1BuyPremiumWithBody(ctx, contentType, body, reqEditors...)
@@ -11270,6 +12069,74 @@ func (c *ClientWithResponses) V1BuyStarsWithResponse(ctx context.Context, body V
 	return ParseV1BuyStarsResp(rsp)
 }
 
+// V1FragmentCancelPaymentWithBodyWithResponse request with arbitrary body returning *V1FragmentCancelPaymentResp
+func (c *ClientWithResponses) V1FragmentCancelPaymentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FragmentCancelPaymentResp, error) {
+	rsp, err := c.V1FragmentCancelPaymentWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentCancelPaymentResp(rsp)
+}
+
+func (c *ClientWithResponses) V1FragmentCancelPaymentWithResponse(ctx context.Context, body V1FragmentCancelPaymentJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FragmentCancelPaymentResp, error) {
+	rsp, err := c.V1FragmentCancelPayment(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentCancelPaymentResp(rsp)
+}
+
+// V1CheckFragmentTransactionWithBodyWithResponse request with arbitrary body returning *V1CheckFragmentTransactionResp
+func (c *ClientWithResponses) V1CheckFragmentTransactionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CheckFragmentTransactionResp, error) {
+	rsp, err := c.V1CheckFragmentTransactionWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1CheckFragmentTransactionResp(rsp)
+}
+
+func (c *ClientWithResponses) V1CheckFragmentTransactionWithResponse(ctx context.Context, body V1CheckFragmentTransactionJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CheckFragmentTransactionResp, error) {
+	rsp, err := c.V1CheckFragmentTransaction(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1CheckFragmentTransactionResp(rsp)
+}
+
+// V1FragmentCreatePaymentWithBodyWithResponse request with arbitrary body returning *V1FragmentCreatePaymentResp
+func (c *ClientWithResponses) V1FragmentCreatePaymentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FragmentCreatePaymentResp, error) {
+	rsp, err := c.V1FragmentCreatePaymentWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentCreatePaymentResp(rsp)
+}
+
+func (c *ClientWithResponses) V1FragmentCreatePaymentWithResponse(ctx context.Context, body V1FragmentCreatePaymentJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FragmentCreatePaymentResp, error) {
+	rsp, err := c.V1FragmentCreatePayment(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentCreatePaymentResp(rsp)
+}
+
+// V1FragmentExecutePaymentWithBodyWithResponse request with arbitrary body returning *V1FragmentExecutePaymentResp
+func (c *ClientWithResponses) V1FragmentExecutePaymentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FragmentExecutePaymentResp, error) {
+	rsp, err := c.V1FragmentExecutePaymentWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentExecutePaymentResp(rsp)
+}
+
+func (c *ClientWithResponses) V1FragmentExecutePaymentWithResponse(ctx context.Context, body V1FragmentExecutePaymentJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FragmentExecutePaymentResp, error) {
+	rsp, err := c.V1FragmentExecutePayment(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentExecutePaymentResp(rsp)
+}
+
 // V1GetPremiumPricesWithResponse request returning *V1GetPremiumPricesResp
 func (c *ClientWithResponses) V1GetPremiumPricesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*V1GetPremiumPricesResp, error) {
 	rsp, err := c.V1GetPremiumPrices(ctx, reqEditors...)
@@ -11279,21 +12146,92 @@ func (c *ClientWithResponses) V1GetPremiumPricesWithResponse(ctx context.Context
 	return ParseV1GetPremiumPricesResp(rsp)
 }
 
-// V1GetStarsPriceWithBodyWithResponse request with arbitrary body returning *V1GetStarsPriceResp
-func (c *ClientWithResponses) V1GetStarsPriceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1GetStarsPriceResp, error) {
-	rsp, err := c.V1GetStarsPriceWithBody(ctx, contentType, body, reqEditors...)
+// V1GetStarsPriceWithResponse request returning *V1GetStarsPriceResp
+func (c *ClientWithResponses) V1GetStarsPriceWithResponse(ctx context.Context, params *V1GetStarsPriceParams, reqEditors ...RequestEditorFn) (*V1GetStarsPriceResp, error) {
+	rsp, err := c.V1GetStarsPrice(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseV1GetStarsPriceResp(rsp)
 }
 
-func (c *ClientWithResponses) V1GetStarsPriceWithResponse(ctx context.Context, body V1GetStarsPriceJSONRequestBody, reqEditors ...RequestEditorFn) (*V1GetStarsPriceResp, error) {
-	rsp, err := c.V1GetStarsPrice(ctx, body, reqEditors...)
+// V1FragmentGetPaymentWithResponse request returning *V1FragmentGetPaymentResp
+func (c *ClientWithResponses) V1FragmentGetPaymentWithResponse(ctx context.Context, uuid string, reqEditors ...RequestEditorFn) (*V1FragmentGetPaymentResp, error) {
+	rsp, err := c.V1FragmentGetPayment(ctx, uuid, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseV1GetStarsPriceResp(rsp)
+	return ParseV1FragmentGetPaymentResp(rsp)
+}
+
+// V1FragmentGetPaymentsListWithResponse request returning *V1FragmentGetPaymentsListResp
+func (c *ClientWithResponses) V1FragmentGetPaymentsListWithResponse(ctx context.Context, params *V1FragmentGetPaymentsListParams, reqEditors ...RequestEditorFn) (*V1FragmentGetPaymentsListResp, error) {
+	rsp, err := c.V1FragmentGetPaymentsList(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentGetPaymentsListResp(rsp)
+}
+
+// V1FragmentSearchUserWithResponse request returning *V1FragmentSearchUserResp
+func (c *ClientWithResponses) V1FragmentSearchUserWithResponse(ctx context.Context, params *V1FragmentSearchUserParams, reqEditors ...RequestEditorFn) (*V1FragmentSearchUserResp, error) {
+	rsp, err := c.V1FragmentSearchUser(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentSearchUserResp(rsp)
+}
+
+// V1FragmentSetApiCredentialsWithBodyWithResponse request with arbitrary body returning *V1FragmentSetApiCredentialsResp
+func (c *ClientWithResponses) V1FragmentSetApiCredentialsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FragmentSetApiCredentialsResp, error) {
+	rsp, err := c.V1FragmentSetApiCredentialsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentSetApiCredentialsResp(rsp)
+}
+
+func (c *ClientWithResponses) V1FragmentSetApiCredentialsWithResponse(ctx context.Context, body V1FragmentSetApiCredentialsJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FragmentSetApiCredentialsResp, error) {
+	rsp, err := c.V1FragmentSetApiCredentials(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentSetApiCredentialsResp(rsp)
+}
+
+// V1FragmentSetWebhookUrlWithBodyWithResponse request with arbitrary body returning *V1FragmentSetWebhookUrlResp
+func (c *ClientWithResponses) V1FragmentSetWebhookUrlWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FragmentSetWebhookUrlResp, error) {
+	rsp, err := c.V1FragmentSetWebhookUrlWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentSetWebhookUrlResp(rsp)
+}
+
+func (c *ClientWithResponses) V1FragmentSetWebhookUrlWithResponse(ctx context.Context, body V1FragmentSetWebhookUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FragmentSetWebhookUrlResp, error) {
+	rsp, err := c.V1FragmentSetWebhookUrl(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentSetWebhookUrlResp(rsp)
+}
+
+// V1FragmentStarsLimitsWithResponse request returning *V1FragmentStarsLimitsResp
+func (c *ClientWithResponses) V1FragmentStarsLimitsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*V1FragmentStarsLimitsResp, error) {
+	rsp, err := c.V1FragmentStarsLimits(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentStarsLimitsResp(rsp)
+}
+
+// V1FragmentWalletInfoWithResponse request returning *V1FragmentWalletInfoResp
+func (c *ClientWithResponses) V1FragmentWalletInfoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*V1FragmentWalletInfoResp, error) {
+	rsp, err := c.V1FragmentWalletInfo(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FragmentWalletInfoResp(rsp)
 }
 
 // V1GetGiftCollectionsWithResponse request returning *V1GetGiftCollectionsResp
@@ -11478,6 +12416,23 @@ func (c *ClientWithResponses) V1GetNftsByAddressesWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseV1GetNftsByAddressesResp(rsp)
+}
+
+// V1MakeNftActionBidWithBodyWithResponse request with arbitrary body returning *V1MakeNftActionBidResp
+func (c *ClientWithResponses) V1MakeNftActionBidWithBodyWithResponse(ctx context.Context, nftAddress string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1MakeNftActionBidResp, error) {
+	rsp, err := c.V1MakeNftActionBidWithBody(ctx, nftAddress, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1MakeNftActionBidResp(rsp)
+}
+
+func (c *ClientWithResponses) V1MakeNftActionBidWithResponse(ctx context.Context, nftAddress string, body V1MakeNftActionBidJSONRequestBody, reqEditors ...RequestEditorFn) (*V1MakeNftActionBidResp, error) {
+	rsp, err := c.V1MakeNftActionBid(ctx, nftAddress, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1MakeNftActionBidResp(rsp)
 }
 
 // V1ConfirmPutUpOffchainNftForSaleFixPriceWithBodyWithResponse request with arbitrary body returning *V1ConfirmPutUpOffchainNftForSaleFixPriceResp
@@ -12871,138 +13826,6 @@ func ParseV1GetCollectionTopResp(rsp *http.Response) (*V1GetCollectionTopResp, e
 	return response, nil
 }
 
-// ParseV1WalletAddFundsResp parses an HTTP response from a V1WalletAddFundsWithResponse call
-func ParseV1WalletAddFundsResp(rsp *http.Response) (*V1WalletAddFundsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &V1WalletAddFundsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FragmentBuyResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest FailedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseV1WalletBuyPremiumResp parses an HTTP response from a V1WalletBuyPremiumWithResponse call
-func ParseV1WalletBuyPremiumResp(rsp *http.Response) (*V1WalletBuyPremiumResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &V1WalletBuyPremiumResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FragmentBuyResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest FailedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseV1WalletBuyStarsResp parses an HTTP response from a V1WalletBuyStarsWithResponse call
-func ParseV1WalletBuyStarsResp(rsp *http.Response) (*V1WalletBuyStarsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &V1WalletBuyStarsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FragmentBuyResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest FailedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseV1CheckFragmentTransactionResp parses an HTTP response from a V1CheckFragmentTransactionWithResponse call
-func ParseV1CheckFragmentTransactionResp(rsp *http.Response) (*V1CheckFragmentTransactionResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &V1CheckFragmentTransactionResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FragmentCheckTransactionResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest FailedResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseV1BuyPremiumResp parses an HTTP response from a V1BuyPremiumWithResponse call
 func ParseV1BuyPremiumResp(rsp *http.Response) (*V1BuyPremiumResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -13069,6 +13892,143 @@ func ParseV1BuyStarsResp(rsp *http.Response) (*V1BuyStarsResp, error) {
 	return response, nil
 }
 
+// ParseV1FragmentCancelPaymentResp parses an HTTP response from a V1FragmentCancelPaymentWithResponse call
+func ParseV1FragmentCancelPaymentResp(rsp *http.Response) (*V1FragmentCancelPaymentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FragmentCancelPaymentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ErrorMessage *string `json:"errorMessage,omitempty"`
+			Success      bool    `json:"success"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1CheckFragmentTransactionResp parses an HTTP response from a V1CheckFragmentTransactionWithResponse call
+func ParseV1CheckFragmentTransactionResp(rsp *http.Response) (*V1CheckFragmentTransactionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1CheckFragmentTransactionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FragmentCheckTransactionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FragmentCreatePaymentResp parses an HTTP response from a V1FragmentCreatePaymentWithResponse call
+func ParseV1FragmentCreatePaymentResp(rsp *http.Response) (*V1FragmentCreatePaymentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FragmentCreatePaymentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FragmentCreatePaymentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FragmentExecutePaymentResp parses an HTTP response from a V1FragmentExecutePaymentWithResponse call
+func ParseV1FragmentExecutePaymentResp(rsp *http.Response) (*V1FragmentExecutePaymentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FragmentExecutePaymentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Success bool `json:"success"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseV1GetPremiumPricesResp parses an HTTP response from a V1GetPremiumPricesWithResponse call
 func ParseV1GetPremiumPricesResp(rsp *http.Response) (*V1GetPremiumPricesResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -13118,6 +14078,241 @@ func ParseV1GetStarsPriceResp(rsp *http.Response) (*V1GetStarsPriceResp, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest FragmentGetPriceResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FragmentGetPaymentResp parses an HTTP response from a V1FragmentGetPaymentWithResponse call
+func ParseV1FragmentGetPaymentResp(rsp *http.Response) (*V1FragmentGetPaymentResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FragmentGetPaymentResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FragmentGetPaymentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FragmentGetPaymentsListResp parses an HTTP response from a V1FragmentGetPaymentsListWithResponse call
+func ParseV1FragmentGetPaymentsListResp(rsp *http.Response) (*V1FragmentGetPaymentsListResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FragmentGetPaymentsListResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FragmentPaymentsListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FragmentSearchUserResp parses an HTTP response from a V1FragmentSearchUserWithResponse call
+func ParseV1FragmentSearchUserResp(rsp *http.Response) (*V1FragmentSearchUserResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FragmentSearchUserResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FragmentSearchUserResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FragmentSetApiCredentialsResp parses an HTTP response from a V1FragmentSetApiCredentialsWithResponse call
+func ParseV1FragmentSetApiCredentialsResp(rsp *http.Response) (*V1FragmentSetApiCredentialsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FragmentSetApiCredentialsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Success bool `json:"success"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FragmentSetWebhookUrlResp parses an HTTP response from a V1FragmentSetWebhookUrlWithResponse call
+func ParseV1FragmentSetWebhookUrlResp(rsp *http.Response) (*V1FragmentSetWebhookUrlResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FragmentSetWebhookUrlResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Success bool `json:"success"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FragmentStarsLimitsResp parses an HTTP response from a V1FragmentStarsLimitsWithResponse call
+func ParseV1FragmentStarsLimitsResp(rsp *http.Response) (*V1FragmentStarsLimitsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FragmentStarsLimitsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FragmentStarsLimitsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FragmentWalletInfoResp parses an HTTP response from a V1FragmentWalletInfoWithResponse call
+func ParseV1FragmentWalletInfoResp(rsp *http.Response) (*V1FragmentWalletInfoResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FragmentWalletInfoResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FragmentWalletInfoResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -13653,6 +14848,39 @@ func ParseV1GetNftsByAddressesResp(rsp *http.Response) (*V1GetNftsByAddressesRes
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest DefaultErrorObject
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1MakeNftActionBidResp parses an HTTP response from a V1MakeNftActionBidWithResponse call
+func ParseV1MakeNftActionBidResp(rsp *http.Response) (*V1MakeNftActionBidResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1MakeNftActionBidResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TransactionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest FailedResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
